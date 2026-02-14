@@ -2,83 +2,220 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>IRIS 58 - Poste de Contrôle Central</title>
-    
+    <title>IRIS 58 - CENTRE DE RÉGULATION</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
 
     <style>
         :root {
-            --bg-dark: #050a15;
-            --sidebar-bg: #0a192f;
-            --accent: #00d2ff;
-            --danger: #ff4d4d;
+            --iris-blue: #00f2ff;
+            --iris-orange: #ffae00;
+            --iris-alert: #ff3e3e;
+            --iris-bg: #050505;
+            --glass: rgba(10, 10, 10, 0.9);
         }
 
-        body { margin: 0; padding: 0; background: var(--bg-dark); color: white; font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; overflow: hidden; }
-
-        /* PANNEAU LATÉRAL */
-        #sidebar {
-            width: 350px;
-            background: var(--sidebar-bg);
-            border-right: 2px solid #1a2a44;
-            display: flex;
-            flex-direction: column;
+        body, html { 
+            margin: 0; padding: 0; background: var(--iris-bg); 
+            font-family: 'Orbitron', sans-serif; color: white; 
+            overflow: hidden; height: 100%; 
         }
 
-        .header-pcc { padding: 20px; border-bottom: 1px solid #1a2a44; background: #0d1b2a; }
-        .header-pcc h1 { margin: 0; font-size: 1.5em; color: var(--accent); }
+        #map { height: 100vh; width: 100vw; z-index: 1; filter: brightness(0.6) contrast(1.2); }
 
-        #bus-list { flex: 1; overflow-y: auto; padding: 15px; }
-
-        .bus-item {
-            background: #16243a;
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 10px;
-            border-left: 4px solid var(--accent);
-            transition: 0.3s;
+        /* Effet de Scanlines (Cockpit) */
+        body::before {
+            content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            z-index: 1001; background-size: 100% 3px, 3px 100%; pointer-events: none;
         }
 
-        .bus-item.warning { border-left-color: var(--danger); animation: pulse 1.5s infinite; }
-
-        /* CARTE */
-        #map { flex: 1; background: #0b1424; }
-
-        /* ALERTES OVERLAY */
-        #alert-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255, 0, 0, 0.3); display: none;
-            justify-content: center; align-items: center; z-index: 9999;
-            pointer-events: none; border: 10px solid var(--danger);
+        /* Panneau Glassmorphism */
+        .pcc-overlay {
+            position: absolute; top: 20px; left: 20px; z-index: 1000;
+            background: var(--glass); backdrop-filter: blur(10px);
+            border-left: 4px solid var(--iris-blue); border-right: 1px solid rgba(0,242,255,0.2);
+            padding: 20px; width: 350px; box-shadow: 0 0 30px rgba(0,0,0,0.8);
         }
 
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+        .status-badge { 
+            display: inline-block; padding: 4px 12px; border: 1px solid var(--iris-blue); 
+            color: var(--iris-blue); font-size: 10px; letter-spacing: 2px;
+        }
+
+        .live-indicator { 
+            display: inline-block; width: 8px; height: 8px; background: #70ff00; 
+            border-radius: 50%; margin-right: 8px; animation: pulse-live 1s infinite; 
+        }
+
+        @keyframes pulse-live { 0%, 100% { opacity: 1; shadow: 0 0 10px #70ff00; } 50% { opacity: 0.3; } }
+
+        /* Style des bus (Hexagones) */
+        .bus-ping {
+            width: 24px; height: 14px; position: relative;
+            clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+            transition: all 0.5s ease; border: 1px solid white;
+        }
+
+        .hex-pulse { animation: pulse-hex 2s infinite; }
+        @keyframes pulse-hex { 
+            0% { transform: scale(1); filter: drop-shadow(0 0 2px var(--iris-blue)); }
+            50% { transform: scale(1.2); filter: drop-shadow(0 0 15px var(--iris-blue)); }
+            100% { transform: scale(1); filter: drop-shadow(0 0 2px var(--iris-blue)); }
+        }
+
+        #reg-console { 
+            height: 150px; overflow-y: auto; font-family: monospace; 
+            font-size: 11px; color: #00f2ff; background: rgba(0,0,0,0.3);
+            border: 1px solid #1a1a1a; margin-top: 15px; padding: 10px;
+        }
+
+        .consigne-box {
+            background: rgba(255, 174, 0, 0.1); border: 1px solid var(--iris-orange);
+            padding: 10px; margin-top: 10px; display: none;
+        }
     </style>
 </head>
+
 <body>
+    <div class="pcc-overlay">
+        <div class="flex justify-between items-center mb-4">
+            <div class="status-badge"><span class="live-indicator"></span>IRIS SYSTEM ACTIVE</div>
+            <div class="text-[10px] text-zinc-500">UNIT: LIGNE 58</div>
+        </div>
+        
+        <h1 class="text-2xl font-bold tracking-tighter text-white mb-1">HUB RÉGULATION</h1>
+        <p class="text-[9px] text-cyan-500 mb-6 uppercase tracking-[3px]">Antigravity Interface v2.6</p>
 
-    <div id="alert-overlay">
-        <h1 style="font-size: 4em; text-shadow: 0 0 20px black;">⚠️ ALERTE INCIDENT L58 ⚠️</h1>
+        <div class="grid grid-cols-2 gap-4 mb-4">
+            <div class="bg-zinc-900/50 p-3 border border-zinc-800">
+                <span id="count-units" class="block text-2xl font-bold text-white">0</span>
+                <span class="text-[8px] text-zinc-500 uppercase">Unités en ligne</span>
+            </div>
+            <div class="bg-zinc-900/50 p-3 border border-zinc-800">
+                <span id="last-ping" class="block text-2xl font-bold text-cyan-400">--:--</span>
+                <span class="text-[8px] text-zinc-500 uppercase">Dernier Signal</span>
+            </div>
+        </div>
+
+        <div id="consigne-alerte" class="consigne-box">
+            <div class="text-[10px] text-orange-400 font-bold">⚠️ MANŒUVRE EN COURS</div>
+            <div id="consigne-detail" class="text-[9px] text-white">Unité 5801 : Zone Châtelet</div>
+        </div>
+
+        <div id="reg-console">
+            <div>[SYS] Initialisation Antigravity...</div>
+            <div>[SYS] Scan zones de retournement OK.</div>
+        </div>
+
+        <button onclick="exportHistory()" class="mt-4 w-full py-2 bg-transparent border border-cyan-900 text-cyan-900 text-[10px] hover:bg-cyan-900 hover:text-white transition-all uppercase tracking-widest">
+            Extraction Logs JSON
+        </button>
     </div>
-
-    <aside id="sidebar">
-        <div class="header-pcc">
-            <h1>IRIS 58 - RÉGULATION</h1>
-            <div id="status-pcc" style="font-size: 0.8em; color: #00c853;">● SYSTÈME EN LIGNE</div>
-        </div>
-        <div id="bus-list">
-            <p style="color: #8892b0; text-align: center;">Aucun bus en service...</p>
-        </div>
-    </aside>
 
     <div id="map"></div>
 
     <script>
-        // Config Carte (Centrée sur la ligne 58 Paris)
-        const map = L.map('map').setView([48.835, 2.325], 13);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+        let map, fleet = {}, historyData = [];
+        const PCC_ID = 'IRIS-PCC-58-GLOBAL';
+        
+        // Coordonnées des zones de manœuvre selon consignes de ligne
+        const zonesManoeuvre = {
+            "VLM": { name: "Vanves Michelet", coords: [48.8212, 2.2901], radius: 120 },
+            "CHT": { name: "Châtelet", coords: [48.8582, 2.3465], radius: 80 }
+        };
 
-        const markers = {};
-        const
+        function initMap() {
+            map = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.828, 2.327], 14);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+            
+            // Tracer les cercles de zones de retournement
+            Object.values(zonesManoeuvre).forEach(zone => {
+                L.circle(zone.coords, {
+                    color: '#ffae00', weight: 1, fillColor: '#ffae00', fillOpacity: 0.1, dashArray: '5, 10'
+                }).addTo(map);
+            });
+
+            initPeer();
+        }
+
+        function updateBus(id, lat, lon, etat = "EN_LIGNE") {
+            const pos = [lat, lon];
+            let inManoeuvre = false;
+            let currentZone = "";
+
+            // Vérification Géofencing Manœuvre
+            Object.keys(zonesManoeuvre).forEach(z => {
+                const dist = map.distance(pos, zonesManoeuvre[z].coords);
+                if (dist < zonesManoeuvre[z].radius) {
+                    inManoeuvre = true;
+                    currentZone = zonesManoeuvre[z].name;
+                }
+            });
+
+            const color = inManoeuvre ? '#ffae00' : '#00f2ff';
+            const shapeStyle = inManoeuvre ? 'clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);' : '';
+
+            if (!fleet[id]) {
+                fleet[id] = L.marker(pos, {
+                    icon: L.divIcon({
+                        className: 'iris-icon',
+                        html: `<div class="bus-ping hex-pulse" style="background:${color}; ${shapeStyle} shadow: 0 0 10px ${color};"></div>`
+                    })
+                }).addTo(map).bindTooltip(id, { permanent: false, direction: 'top' });
+                
+                logToConsole(`[NEW] Unité ${id} connectée.`);
+            } else {
+                fleet[id].setLatLng(pos);
+                fleet[id].setIcon(L.divIcon({
+                    className: 'iris-icon',
+                    html: `<div class="bus-ping hex-pulse" style="background:${color}; ${shapeStyle} shadow: 0 0 10px ${color};"></div>`
+                }));
+            }
+
+            // Gestion de l'affichage des consignes
+            if (inManoeuvre) {
+                document.getElementById('consigne-alerte').style.display = 'block';
+                document.getElementById('consigne-detail').innerText = `${id} : Retournement ${currentZone}`;
+            }
+
+            document.getElementById('count-units').innerText = Object.keys(fleet).length;
+            document.getElementById('last-ping').innerText = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            
+            historyData.push({ id, lat, lon, status: inManoeuvre ? 'MANOEUVRE' : 'LIGNE', time: new Date().toISOString() });
+        }
+
+        function initPeer() {
+            const peer = new Peer(PCC_ID);
+            peer.on('connection', (conn) => {
+                conn.on('data', (data) => {
+                    if (data.type === 'position') updateBus(data.id, data.lat, data.lon);
+                });
+            });
+            
+            peer.on('error', (err) => {
+                logToConsole(`[ERR] PeerJS: ${err.type}`);
+            });
+        }
+
+        function logToConsole(msg) {
+            const consoleDiv = document.getElementById('reg-console');
+            consoleDiv.innerHTML = `<div>[${new Date().toLocaleTimeString()}] ${msg}</div>` + consoleDiv.innerHTML;
+        }
+
+        function exportHistory() {
+            const blob = new Blob([JSON.stringify(historyData, null, 2)], {type: "application/json"});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `IRIS_COLLECTE_58.json`;
+            a.click();
+        }
+
+        window.onload = initMap;
+    </script>
+</body>
+</html>

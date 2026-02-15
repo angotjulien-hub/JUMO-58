@@ -3,130 +3,90 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>IRIS 58 - TERMINAL CONDUCTEUR</title>
+    <title>IRIS 58 - TERMINAL SAEIV</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
-
     <style>
-        :root { 
-            --iris-blue: #00f2ff; 
-            --iris-orange: #ffae00; 
-            --iris-bg: #050505; 
-        }
-        
-        body, html { 
-            margin: 0; padding: 0; background: var(--iris-bg); 
-            font-family: 'Orbitron', sans-serif; color: white; 
-            height: 100%; overflow: hidden; 
-        }
-        
-        /* Conteneur pour la rotation */
-        #map-container {
-            height: 100vh; width: 100vw;
-            transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-            z-index: 1;
-        }
-
+        :root { --iris-blue: #00f2ff; --iris-orange: #ffae00; --iris-bg: #050505; }
+        body, html { margin: 0; padding: 0; background: var(--iris-bg); font-family: 'Orbitron', sans-serif; color: white; height: 100%; overflow: hidden; }
+        #map-container { height: 100vh; width: 100vw; transition: transform 0.3s linear; z-index: 1; }
         #map { height: 100%; width: 100%; filter: brightness(0.6) saturate(1.4); }
-
-        /* HUD Overlay (Aspect Cockpit) */
-        .ui-panel {
-            position: absolute; z-index: 1000; background: rgba(10, 10, 10, 0.85);
-            backdrop-filter: blur(10px); border: 1px solid rgba(0, 242, 255, 0.2);
-            pointer-events: auto;
-        }
-
-        .header { top: 15px; left: 15px; right: 15px; padding: 15px; border-top: 2px solid var(--iris-blue); }
+        
+        .ui-panel { position: absolute; z-index: 1000; background: rgba(10, 10, 10, 0.9); backdrop-filter: blur(15px); border: 1px solid rgba(0, 242, 255, 0.2); }
+        
+        /* SAEIV Next Stop */
+        .next-stop-panel { top: 15px; left: 15px; right: 15px; padding: 20px; border-left: 6px solid var(--iris-blue); }
+        
+        /* Radar Intervalles (Point fort) */
+        .interval-panel { top: 120px; right: 15px; width: 100px; padding: 10px; text-align: center; }
+        
         .footer { bottom: 25px; left: 15px; right: 15px; padding: 20px; border-bottom: 4px solid var(--iris-blue); }
-
-        /* Bouton Manœuvre (Consigne de ligne) */
-        .btn-manoeuvre {
-            background: rgba(0, 242, 255, 0.1); border: 1px solid var(--iris-blue);
-            color: var(--iris-blue); padding: 12px 24px; font-size: 11px; font-weight: bold;
-            text-transform: uppercase; letter-spacing: 2px; transition: all 0.3s;
-        }
-        .btn-manoeuvre.active { 
-            background: var(--iris-orange); border-color: white; color: black; 
-            box-shadow: 0 0 25px var(--iris-orange); 
-        }
-
-        /* Indicateurs de direction */
-        .direction-arrow {
-            width: 0; height: 0; border-left: 10px solid transparent;
-            border-right: 10px solid transparent; border-bottom: 25px solid var(--iris-blue);
-            filter: drop-shadow(0 0 10px var(--iris-blue));
-        }
-
-        /* Scanlines effet photo */
-        body::after {
-            content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%),
-                        linear-gradient(90deg, rgba(255, 0, 0, 0.02), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.02));
-            background-size: 100% 4px, 4px 100%; pointer-events: none; z-index: 1001;
-        }
+        .btn-manoeuvre { background: rgba(0, 242, 255, 0.1); border: 1px solid var(--iris-blue); color: var(--iris-blue); padding: 12px; font-size: 10px; font-weight: bold; text-transform: uppercase; }
+        .btn-manoeuvre.active { background: var(--iris-orange); border-color: white; color: black; box-shadow: 0 0 25px var(--iris-orange); }
+        
+        .direction-arrow { width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 25px solid var(--iris-blue); filter: drop-shadow(0 0 10px var(--iris-blue)); }
     </style>
 </head>
-
 <body>
-    <div class="ui-panel header rounded-lg flex justify-between items-center shadow-2xl">
-        <div>
-            <div class="text-[9px] text-cyan-500 tracking-[4px]">IRIS 2.6 // UNIT S8-58</div>
-            <div id="delta-display" class="text-2xl font-bold">DELTA <span class="text-green-400">+1.8 min</span></div>
-        </div>
-        <div class="text-right">
-            <div id="status-link" class="text-[10px] text-green-400">● LIAISON ANTIGRAVITY OK</div>
-            <div id="clock" class="text-xl text-zinc-400">00:00</div>
+
+    <div class="ui-panel next-stop-panel rounded-lg shadow-2xl">
+        <div class="text-[10px] text-cyan-500 tracking-[3px] mb-1">PROCHAIN ARRÊT</div>
+        <div id="next-stop-name" class="text-2xl font-bold uppercase truncate text-white">CHARGEMENT...</div>
+        <div class="flex justify-between mt-2 items-center">
+            <div id="dist-stop" class="text-[10px] text-zinc-400 italic">Distance : --- m</div>
+            <div class="text-[10px] bg-blue-900/50 px-2 py-1 rounded">LIGNE 58</div>
         </div>
     </div>
 
-    <div id="map-container">
-        <div id="map"></div>
+    <div class="ui-panel interval-panel rounded-lg flex flex-col gap-3">
+        <div class="border-b border-zinc-800 pb-1">
+            <div class="text-[8px] text-zinc-500 uppercase">Précédent</div>
+            <div id="int-prev" class="text-sm font-bold text-green-400">-- min</div>
+        </div>
+        <div>
+            <div class="text-[8px] text-zinc-500 uppercase">Suivant</div>
+            <div id="int-next" class="text-sm font-bold text-cyan-400">-- min</div>
+        </div>
     </div>
+
+    <div id="map-container"><div id="map"></div></div>
 
     <div class="ui-panel footer rounded-xl flex flex-col gap-4 shadow-2xl">
         <div class="flex justify-between items-center">
-            <div>
-                <div class="text-[9px] text-zinc-500 uppercase tracking-widest">Consigne de Ligne</div>
-                <div id="consigne-label" class="text-sm font-bold">MODE : EN LIGNE (Normal)</div>
+            <div class="w-1/2">
+                <div class="text-[9px] text-zinc-500 uppercase tracking-widest">Temps de Trajet</div>
+                <div id="delta-display" class="text-lg font-bold">DELTA <span class="text-green-400">+1.8 min</span></div>
             </div>
-            <button id="btn-manoeuvre" class="btn-manoeuvre" onclick="toggleManoeuvre()">🔄 Début Manœuvre</button>
+            <button id="btn-manoeuvre" class="btn-manoeuvre w-1/2 rounded" onclick="toggleManoeuvre()">🔄 Début Manœuvre</button>
         </div>
-        <div class="w-full bg-zinc-900 h-1.5 rounded-full overflow-hidden">
+        <div class="w-full bg-zinc-900 h-1 rounded-full overflow-hidden">
             <div id="progress-bar" class="bg-cyan-500 h-full w-0 transition-all duration-1000"></div>
         </div>
     </div>
 
     <script>
-        let map, marker, peer, conn, currentHeading = 0, isManoeuvre = false;
-        const AGENT_ID = 'BUS-58-75014'; // Identifiant fixe ou dynamique
+        let map, marker, peer, conn, isManoeuvre = false;
+        const AGENT_ID = 'BUS-58-75014';
+        
+        // Liste des arrêts pour le SAEIV (basée sur tes photos)
+        const arrets58 = [
+            { name: "Vanves Lycée Michelet", coords: [48.8212, 2.2901] },
+            { name: "Av Victor Hugo", coords: [48.8235, 2.2950] },
+            { name: "Carrefour Albert Legris", coords: [48.8258, 2.2990] },
+            { name: "Rue Jean Jaurès", coords: [48.8280, 2.3020] },
+            { name: "Place du 18 Juin 1940", coords: [48.8421, 2.3219] },
+            { name: "Châtelet", coords: [48.8582, 2.3465] }
+        ];
 
         function initMap() {
-            // Initialisation Leaflet
-            map = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.828, 2.327], 17);
-            
+            map = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.840, 2.318], 17);
             L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
-
-            // Marqueur central (Le Bus)
-            const iconHTML = L.divIcon({
-                className: 'icon-bus',
-                html: `<div class="direction-arrow"></div>`,
-                iconSize: [20, 25], iconAnchor: [10, 12]
-            });
-
-            marker = L.marker([48.828, 2.327], { icon: iconHTML }).addTo(map);
-
-            // Géolocalisation avec rotation
-            if (navigator.geolocation) {
-                navigator.geolocation.watchPosition(handleGPS, null, { enableHighAccuracy: true });
-            }
-
-            setInterval(() => {
-                document.getElementById('clock').innerText = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            }, 1000);
-
+            marker = L.marker([48.840, 2.318], { icon: L.divIcon({ className: '', html: `<div class="direction-arrow"></div>`, iconSize: [20, 25] }) }).addTo(map);
+            
+            if (navigator.geolocation) navigator.geolocation.watchPosition(handleGPS, null, { enableHighAccuracy: true });
             initPeer();
         }
 
@@ -134,49 +94,56 @@
             const { latitude, longitude, heading } = pos.coords;
             const latlng = [latitude, longitude];
 
-            // 🎯 ROTATION GPS : On fait tourner le conteneur de la carte
-            if (heading !== null && heading !== undefined) {
-                currentHeading = heading;
-                document.getElementById('map-container').style.transform = `rotate(${-currentHeading}deg)`;
-            }
-
+            // Rotation et Suivi
+            if (heading !== null) document.getElementById('map-container').style.transform = `rotate(${-heading}deg)`;
             marker.setLatLng(latlng);
             map.flyTo(latlng, isManoeuvre ? 18 : 17, { animate: true, duration: 1.5 });
 
-            // Envoi au PCC pour la collecte de données
+            // Mise à jour SAEIV (Prochain arrêt)
+            updateSAEIV(latlng);
+
+            // Transmission
             if (conn && conn.open) {
-                conn.send({ type: 'position', id: AGENT_ID, lat: latitude, lon: longitude, heading: currentHeading, status: isManoeuvre });
+                conn.send({ type: 'position', id: AGENT_ID, lat: latitude, lon: longitude, heading: heading, status: isManoeuvre });
+            }
+        }
+
+        function updateSAEIV(currentPos) {
+            let closest = null;
+            let minDist = Infinity;
+
+            arrets58.forEach(stop => {
+                const d = map.distance(currentPos, stop.coords);
+                // On cherche l'arrêt le plus proche devant nous (simplifié ici)
+                if (d < minDist && d > 30) { minDist = d; closest = stop; }
+            });
+
+            if (closest) {
+                document.getElementById('next-stop-name').innerText = closest.name;
+                document.getElementById('dist-stop').innerText = `Distance : ${Math.round(minDist)} m`;
             }
         }
 
         function toggleManoeuvre() {
             isManoeuvre = !isManoeuvre;
             const btn = document.getElementById('btn-manoeuvre');
-            const label = document.getElementById('consigne-label');
-            const bar = document.getElementById('progress-bar');
-            
-            if (isManoeuvre) {
-                btn.innerText = "🏁 FIN MANŒUVRE";
-                btn.classList.add('active');
-                label.innerText = "MODE : RETOURNEMENT / MANŒUVRE";
-                bar.style.width = "100%";
-            } else {
-                btn.innerText = "🔄 DÉBUT MANŒUVRE";
-                btn.classList.remove('active');
-                label.innerText = "MODE : EN LIGNE (Normal)";
-                bar.style.width = "0%";
-            }
+            btn.innerText = isManoeuvre ? "🏁 FIN MANŒUVRE" : "🔄 DÉBUT MANŒUVRE";
+            btn.classList.toggle('active');
+            document.getElementById('progress-bar').style.width = isManoeuvre ? "100%" : "0%";
         }
 
+        // Réception des intervalles depuis le PCC
         function initPeer() {
             peer = new Peer(AGENT_ID);
-            peer.on('open', (id) => {
+            peer.on('open', () => {
                 conn = peer.connect('IRIS-PCC-58-GLOBAL');
-                conn.on('open', () => {
-                    document.getElementById('status-link').innerText = "● LIAISON PCC CONNECTÉE";
+                conn.on('data', (data) => {
+                    if(data.type === 'intervals') {
+                        document.getElementById('int-prev').innerText = data.prev + " min";
+                        document.getElementById('int-next').innerText = data.next + " min";
+                    }
                 });
             });
-            peer.on('disconnected', () => peer.reconnect());
         }
 
         window.onload = initMap;

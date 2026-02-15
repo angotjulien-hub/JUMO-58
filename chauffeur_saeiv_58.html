@@ -106,3 +106,44 @@
             map.flyTo([latitude, longitude], 17);
             
             let closest = stops[0], minDist = Infinity;
+            stops.forEach(s => { const d = map.distance([latitude, longitude], s.c); if(d < minDist){minDist=d; closest=s;} });
+            
+            document.getElementById('next-stop-name').innerText = closest.name;
+            if(minDist < 60) calculerPonctualite(closest.name);
+
+            if (conn && conn.open) conn.send({type:'position', id:AGENT_ID, police:POLICE, service:SVC, lat:latitude, lon:longitude, delay:currentDelay});
+        }
+
+        function calculerPonctualite(stopName) {
+            if (!TM_THEORIQUE[stopName]) return;
+            const now = new Date();
+            const minNow = (now.getHours() * 60) + now.getMinutes();
+            currentDelay = minNow - TM_THEORIQUE[stopName];
+
+            const disp = document.getElementById('delay-value');
+            const bar = document.getElementById('chrono-bar');
+            const lbl = document.getElementById('tm-label');
+
+            if (currentDelay > 0) { disp.innerText = `-${currentDelay}'`; disp.className = "text-red-500 orbitron text-xl font-bold"; bar.style.borderBottomColor = "#ef4444"; lbl.innerText = "Retard"; }
+            else if (currentDelay < 0) { disp.innerText = `+${Math.abs(currentDelay)}'`; disp.className = "text-cyan-400 orbitron text-xl font-bold"; bar.style.borderBottomColor = "#00f2ff"; lbl.innerText = "Avance"; }
+            else { disp.innerText = "00:00"; disp.className = "text-green-500 orbitron text-xl font-bold"; bar.style.borderBottomColor = "#22c55e"; lbl.innerText = "À l'heure"; }
+        }
+
+        function toggleMenu() { document.getElementById('sub-menu').classList.toggle('translate-y-full'); }
+        function actionSAE(t) { if(t==='Alarmes') document.getElementById('page-alarmes').style.display='block'; else alert(t); }
+        function acquitterMessage() { document.getElementById('msg-reception').classList.add('hidden'); if(conn) conn.send({type:'ack_message', police:POLICE}); }
+
+        function initPeer() {
+            peer = new Peer(AGENT_ID);
+            peer.on('open', () => {
+                conn = peer.connect('IRIS-PCC-58-GLOBAL');
+                conn.on('data', (d) => {
+                    if(d.type === 'message_pcc'){ document.getElementById('msg-content').innerText = d.texte; document.getElementById('msg-reception').classList.remove('hidden'); }
+                    if(d.type === 'intervals'){ document.getElementById('int-prev').innerText = d.prev + "'"; document.getElementById('int-next').innerText = d.next + "'"; }
+                });
+            });
+        }
+        window.onload = init;
+    </script>
+</body>
+</html>

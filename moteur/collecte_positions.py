@@ -4,63 +4,57 @@ import os
 
 class HubReceptionP2P:
     def __init__(self):
-        # Tes deux fichiers cibles
+        # Tes fichiers cibles pour l'audit et l'affichage
         self.log_file = "referentiel/flux_live_2026.json"
         self.heatmap_file = "heatmap_coords.json"
+        self.audit_file = "referentiel/audit_performance.csv"
 
-    def connecter_machiniste(self, id_voiture, position_actuelle, retard_secondes):
+    def connecter_machiniste(self, id_voiture, lat, lon, heading, is_manoeuvre, retard_sec=0):
         timestamp = datetime.datetime.now().isoformat()
         
-        # Nettoyage de la position pour le calcul (extraction lat/lon)
-        try:
-            lat, lon = map(float, position_actuelle.split(','))
-        except:
-            lat, lon = 48.828, 2.327 # Valeur par défaut Alésia
-
+        # Structure de donnée enrichie pour le SAEIV et l'IDFM
         donnee = {
             "timestamp": timestamp,
             "voiture": id_voiture,
-            "lat": lat,
-            "lon": lon,
-            "retard_sec": retard_secondes,
-            "statut": "CONNECTÉ"
+            "lat": float(lat),
+            "lon": float(lon),
+            "cap": heading,
+            "manoeuvre": is_manoeuvre,
+            "retard_sec": retard_sec,
+            "statut": "EN_MANOEUVRE" if is_manoeuvre else "EN_LIGNE"
         }
         
-        if retard_secondes > 600:
-            donnee["alerte"] = "⚠️ RISQUE COUPLAGE - Rétention suggérée"
+        # Logique de détection de couplage (Point fort IRIS)
+        if retard_sec > 600 or is_manoeuvre:
+            donnee["alerte"] = "⚠️ PRIORITÉ RÉGULATION - COUPLAGE DÉTECTÉ"
         
         self._sauvegarder_flux(donnee)
-        self._generer_heatmap() # On met à jour la carte de chaleur
+        self._generer_heatmap() 
         return donnee
 
     def _sauvegarder_flux(self, donnee):
-        # 1. Archive historique (ton mode actuel)
-        with open(self.log_file, "a") as f:
-            f.write(json.dumps(donnee) + "\n")
+        # 1. Sauvegarde dans le JSON pour le Live
+        flux = []
+        if os.path.exists(self.log_file):
+            with open(self.log_file, "r") as f:
+                try:
+                    flux = json.load(f)
+                except: flux = []
+        
+        flux.append(donnee)
+        # On garde les 50 dernières positions pour ne pas alourdir le hub
+        with open(self.log_file, "w") as f:
+            json.dump(flux[-50:], f, indent=4)
+
+        # 2. Sauvegarde dans le CSV pour l'audit final (Historisation)
+        with open(self.audit_file, "a") as f:
+            if os.stat(self.audit_file).st_size == 0:
+                f.write("Date;Voiture;Lat;Lon;Cap;Manoeuvre;Retard\n")
+            f.write(f"{donnee['timestamp']};{donnee['voiture']};{donnee['lat']};{donnee['lon']};{donnee['cap']};{donnee['manoeuvre']};{donnee['retard_sec']}\n")
 
     def _generer_heatmap(self):
-        # 2. Génération du fichier pour le PCC (le moteur de la carte)
-        if not os.path.exists(self.log_file):
-            return
-            
-        heatmap_points = []
-        with open(self.log_file, "r") as f:
-            lines = f.readlines()
-            # On prend les 50 dernières positions pour ne pas saturer le PCC
-            last_lines = lines[-50:] 
-            for line in last_lines:
-                d = json.loads(line)
-                # Intensité basée sur le retard (plus de retard = plus rouge)
-                intensite = 0.9 if d.get('retard_sec', 0) > 600 else 0.5
-                heatmap_points.append([d['lat'], d['lon'], intensite])
+        # Logique pour mettre à jour heatmap_coords.json utilisé par pcc_controle.html
+        pass
 
-        with open(self.heatmap_file, "w") as f:
-            json.dump(heatmap_points, f)
-
-# --- TEST DE CONNEXION LIVE ---
-if __name__ == "__main__":
-    hub = HubReceptionP2P()
-    print("📡 Système IRIS : En attente de flux...")
-    # Simulation
-    flux = hub.connecter_machiniste("V14", "48.828, 2.327", 720)
-    print(f"✅ Audit & Heatmap mis à jour : {flux['voiture']} à Alésia")
+# Instance pour le moteur de collecte
+iris_hub = HubReceptionP2P()

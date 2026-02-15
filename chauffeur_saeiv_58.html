@@ -2,227 +2,184 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IRIS - Terminal Chauffeur L58</title>
-    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>IRIS 58 - TERMINAL CONDUCTEUR</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
 
     <style>
-        :root {
-            --bg-color: #050a15;
-            --panel-bg: #0a192f;
-            --text-main: #e0f7fa;
-            --accent-blue: #00d2ff;
-            --alert-red: #d32f2f;
-            --ok-green: #00c853;
+        :root { 
+            --iris-blue: #00f2ff; 
+            --iris-orange: #ffae00; 
+            --iris-bg: #050505; 
+        }
+        
+        body, html { 
+            margin: 0; padding: 0; background: var(--iris-bg); 
+            font-family: 'Orbitron', sans-serif; color: white; 
+            height: 100%; overflow: hidden; 
+        }
+        
+        /* Conteneur pour la rotation */
+        #map-container {
+            height: 100vh; width: 100vw;
+            transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1;
         }
 
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            font-family: 'Segoe UI', Roboto, sans-serif;
-            margin: 0;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
+        #map { height: 100%; width: 100%; filter: brightness(0.6) saturate(1.4); }
+
+        /* HUD Overlay (Aspect Cockpit) */
+        .ui-panel {
+            position: absolute; z-index: 1000; background: rgba(10, 10, 10, 0.85);
+            backdrop-filter: blur(10px); border: 1px solid rgba(0, 242, 255, 0.2);
+            pointer-events: auto;
         }
 
-        /* Header : Télémétrie */
-        header {
-            display: flex;
-            justify-content: space-between;
-            padding: 15px;
-            background: var(--panel-bg);
-            border-bottom: 2px solid #1a2a44;
+        .header { top: 15px; left: 15px; right: 15px; padding: 15px; border-top: 2px solid var(--iris-blue); }
+        .footer { bottom: 25px; left: 15px; right: 15px; padding: 20px; border-bottom: 4px solid var(--iris-blue); }
+
+        /* Bouton Manœuvre (Consigne de ligne) */
+        .btn-manoeuvre {
+            background: rgba(0, 242, 255, 0.1); border: 1px solid var(--iris-blue);
+            color: var(--iris-blue); padding: 12px 24px; font-size: 11px; font-weight: bold;
+            text-transform: uppercase; letter-spacing: 2px; transition: all 0.3s;
+        }
+        .btn-manoeuvre.active { 
+            background: var(--iris-orange); border-color: white; color: black; 
+            box-shadow: 0 0 25px var(--iris-orange); 
         }
 
-        .stat-box { text-align: center; }
-        .stat-label { font-size: 0.7em; color: var(--accent-blue); text-transform: uppercase; }
-        .stat-value { font-size: 1.4em; font-weight: bold; }
-
-        /* Zone Centrale : Progression & Prochain Arrêt */
-        main {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            position: relative;
-        }
-
+        /* Indicateurs de direction */
         .direction-arrow {
-            font-size: 80px;
-            color: var(--accent-blue);
-            margin-bottom: 10px;
-            transition: transform 0.5s;
+            width: 0; height: 0; border-left: 10px solid transparent;
+            border-right: 10px solid transparent; border-bottom: 25px solid var(--iris-blue);
+            filter: drop-shadow(0 0 10px var(--iris-blue));
         }
 
-        .next-stop-card {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 15px;
-            padding: 20px;
-            width: 90%;
-            text-align: center;
-            border: 1px solid #1a2a44;
-        }
-
-        .delay-indicator {
-            font-size: 2.5em;
-            margin-top: 10px;
-            font-weight: 900;
-        }
-
-        /* Mini-Map en bas à droite */
-        #mini-map {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            width: 150px;
-            height: 150px;
-            border-radius: 15px;
-            border: 2px solid var(--accent-blue);
-            z-index: 10;
-        }
-
-        /* Footer : Actions */
-        footer {
-            padding: 15px;
-            display: flex;
-            gap: 10px;
-        }
-
-        .btn {
-            flex: 1;
-            padding: 20px;
-            border: none;
-            border-radius: 10px;
-            font-weight: bold;
-            font-size: 1.1em;
-            color: white;
-            cursor: pointer;
-        }
-
-        .btn-incident { background-color: var(--alert-red); }
-        .btn-pcc { background-color: #1a2a44; border: 1px solid var(--accent-blue); }
-
-        .pulse { animation: pulse-red 2s infinite; }
-        @keyframes pulse-red {
-            0% { box-shadow: 0 0 0 0 rgba(211, 47, 47, 0.7); }
-            70% { box-shadow: 0 0 0 15px rgba(211, 47, 47, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(211, 47, 47, 0); }
+        /* Scanlines effet photo */
+        body::after {
+            content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%),
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.02), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.02));
+            background-size: 100% 4px, 4px 100%; pointer-events: none; z-index: 1001;
         }
     </style>
 </head>
+
 <body>
-
-    <header>
-        <div class="stat-box">
-            <div class="stat-label">Bus ID</div>
-            <div class="stat-value" id="bus-id">5804</div>
+    <div class="ui-panel header rounded-lg flex justify-between items-center shadow-2xl">
+        <div>
+            <div class="text-[9px] text-cyan-500 tracking-[4px]">IRIS 2.6 // UNIT S8-58</div>
+            <div id="delta-display" class="text-2xl font-bold">DELTA <span class="text-green-400">+1.8 min</span></div>
         </div>
-        <div class="stat-box">
-            <div class="stat-label">Espace Devant</div>
-            <div class="stat-value" id="gap-front">-- min</div>
+        <div class="text-right">
+            <div id="status-link" class="text-[10px] text-green-400">● LIAISON ANTIGRAVITY OK</div>
+            <div id="clock" class="text-xl text-zinc-400">00:00</div>
         </div>
-        <div class="stat-box">
-            <div class="stat-label">Espace Derrière</div>
-            <div class="stat-value" id="gap-back">-- min</div>
+    </div>
+
+    <div id="map-container">
+        <div id="map"></div>
+    </div>
+
+    <div class="ui-panel footer rounded-xl flex flex-col gap-4 shadow-2xl">
+        <div class="flex justify-between items-center">
+            <div>
+                <div class="text-[9px] text-zinc-500 uppercase tracking-widest">Consigne de Ligne</div>
+                <div id="consigne-label" class="text-sm font-bold">MODE : EN LIGNE (Normal)</div>
+            </div>
+            <button id="btn-manoeuvre" class="btn-manoeuvre" onclick="toggleManoeuvre()">🔄 Début Manœuvre</button>
         </div>
-    </header>
-
-    <main>
-        <div id="direction-icon" class="direction-arrow">⬆</div>
-        
-        <div class="next-stop-card">
-            <div class="stat-label" id="direction-label">EN DIRECTION DE VANVES</div>
-            <div style="font-size: 1.8em; margin: 10px 0;" id="next-stop-name">ALÉSIA - LES PLANTES</div>
-            <div class="stat-label">AVANCE / RETARD</div>
-            <div id="delta-time" class="delay-indicator">+01:30</div>
+        <div class="w-full bg-zinc-900 h-1.5 rounded-full overflow-hidden">
+            <div id="progress-bar" class="bg-cyan-500 h-full w-0 transition-all duration-1000"></div>
         </div>
-
-        <div id="mini-map"></div>
-    </main>
-
-    <footer>
-        <button class="btn btn-pcc">APPEL PCC</button>
-        <button class="btn btn-incident pulse" onclick="signalerIncident()">SIGNALER INCIDENT</button>
-    </footer>
+    </div>
 
     <script>
-        // --- CONFIGURATION LIGNE 58 ---
-        const stations = {
-            ALLER: [
-                { id: "CTL", name: "Châtelet", lat: 48.8575, lon: 2.3475 },
-                { id: "GA", name: "Grands Augustins", lat: 48.8545, lon: 2.3405 },
-                { id: "LUX", name: "Luxembourg", lat: 48.8471, lon: 2.3392 },
-                { id: "18J", name: "Montparnasse", lat: 48.8421, lon: 2.3219 },
-                { id: "AL", name: "Alésia-Les Plantes", lat: 48.8281, lon: 2.3210 },
-                { id: "CHN", name: "Porte de Vanves", lat: 48.8235, lon: 2.3045 },
-                { id: "VLM", name: "Vanves Lycée Michelet", lat: 48.8210, lon: 2.2900 }
-            ],
-            RETOUR: [
-                { id: "VLM", name: "Vanves Lycée Michelet", lat: 48.8210, lon: 2.2900 },
-                { id: "CHI", name: "Porte de Vanves", lat: 48.8235, lon: 2.3045 },
-                { id: "AL", name: "Alésia-Didot", lat: 48.8281, lon: 2.3267 },
-                { id: "18J", name: "Montparnasse", lat: 48.8421, lon: 2.3219 },
-                { id: "SG", name: "Saint-Germain", lat: 48.8530, lon: 2.3330 },
-                { id: "CTL", name: "Châtelet", lat: 48.8575, lon: 2.3475 }
-            ]
-        };
+        let map, marker, peer, conn, currentHeading = 0, isManoeuvre = false;
+        const AGENT_ID = 'BUS-58-75014'; // Identifiant fixe ou dynamique
 
-        let currentSens = "ALLER";
-        let map, userMarker;
-
-        // --- INITIALISATION CARTE ---
         function initMap() {
-            map = L.map('mini-map', {
-                zoomControl: false,
-                attributionControl: false
-            }).setView([48.84, 2.32], 13);
-
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
-            userMarker = L.circleMarker([0, 0], { color: '#00d2ff', radius: 8, fillOpacity: 1 }).addTo(map);
-        }
-
-        // --- LOGIQUE GPS & SENS ---
-        function updatePosition() {
-            navigator.geolocation.watchPosition((pos) => {
-                const lat = pos.coords.latitude;
-                const lon = pos.coords.longitude;
-                const speed = Math.round(pos.coords.speed * 3.6) || 0;
-
-                userMarker.setLatLng([lat, lon]);
-                map.panTo([lat, lon]);
-
-                // Détection de sens (simplifiée)
-                if (lat > 48.85) currentSens = "RETOUR";
-                if (lat < 48.82) currentSens = "ALLER";
-
-                document.getElementById('direction-icon').innerText = currentSens === "ALLER" ? "⬇" : "⬆";
-                document.getElementById('direction-label').innerText = currentSens === "ALLER" ? "VERS LYCÉE MICHELET" : "VERS CHÂTELET";
-            });
-        }
-
-        function signalerIncident() {
-            alert("Incident signalé au PCC !");
-            // Ici le code PeerJS pour envoyer l'alerte au Mac
-        }
-
-        // Lancement
-        window.onload = () => {
-            initMap();
-            updatePosition();
+            // Initialisation Leaflet
+            map = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.828, 2.327], 17);
             
-            // Simulation avance (à coupler avec tes CSV)
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+
+            // Marqueur central (Le Bus)
+            const iconHTML = L.divIcon({
+                className: 'icon-bus',
+                html: `<div class="direction-arrow"></div>`,
+                iconSize: [20, 25], iconAnchor: [10, 12]
+            });
+
+            marker = L.marker([48.828, 2.327], { icon: iconHTML }).addTo(map);
+
+            // Géolocalisation avec rotation
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition(handleGPS, null, { enableHighAccuracy: true });
+            }
+
             setInterval(() => {
-                const randomDelay = (Math.random() * 5).toFixed(1);
-                document.getElementById('delta-time').innerText = `+0${Math.floor(randomDelay)}:${Math.floor((randomDelay % 1) * 60)}`;
-            }, 5000);
-        };
+                document.getElementById('clock').innerText = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            }, 1000);
+
+            initPeer();
+        }
+
+        function handleGPS(pos) {
+            const { latitude, longitude, heading } = pos.coords;
+            const latlng = [latitude, longitude];
+
+            // 🎯 ROTATION GPS : On fait tourner le conteneur de la carte
+            if (heading !== null && heading !== undefined) {
+                currentHeading = heading;
+                document.getElementById('map-container').style.transform = `rotate(${-currentHeading}deg)`;
+            }
+
+            marker.setLatLng(latlng);
+            map.flyTo(latlng, isManoeuvre ? 18 : 17, { animate: true, duration: 1.5 });
+
+            // Envoi au PCC pour la collecte de données
+            if (conn && conn.open) {
+                conn.send({ type: 'position', id: AGENT_ID, lat: latitude, lon: longitude, heading: currentHeading, status: isManoeuvre });
+            }
+        }
+
+        function toggleManoeuvre() {
+            isManoeuvre = !isManoeuvre;
+            const btn = document.getElementById('btn-manoeuvre');
+            const label = document.getElementById('consigne-label');
+            const bar = document.getElementById('progress-bar');
+            
+            if (isManoeuvre) {
+                btn.innerText = "🏁 FIN MANŒUVRE";
+                btn.classList.add('active');
+                label.innerText = "MODE : RETOURNEMENT / MANŒUVRE";
+                bar.style.width = "100%";
+            } else {
+                btn.innerText = "🔄 DÉBUT MANŒUVRE";
+                btn.classList.remove('active');
+                label.innerText = "MODE : EN LIGNE (Normal)";
+                bar.style.width = "0%";
+            }
+        }
+
+        function initPeer() {
+            peer = new Peer(AGENT_ID);
+            peer.on('open', (id) => {
+                conn = peer.connect('IRIS-PCC-58-GLOBAL');
+                conn.on('open', () => {
+                    document.getElementById('status-link').innerText = "● LIAISON PCC CONNECTÉE";
+                });
+            });
+            peer.on('disconnected', () => peer.reconnect());
+        }
+
+        window.onload = initMap;
     </script>
 </body>
 </html>

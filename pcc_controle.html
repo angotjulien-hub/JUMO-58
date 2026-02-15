@@ -11,14 +11,14 @@
     <style>
         body { margin: 0; background: #050505; font-family: 'Orbitron', sans-serif; color: white; overflow: hidden; }
         #map { height: 100vh; width: 100vw; filter: brightness(0.3) contrast(1.2); }
-        .top-bar { position: fixed; top: 0; left: 0; right: 0; height: 50px; background: rgba(0,0,0,0.9); border-bottom: 1px solid #333; z-index: 2000; display: flex; align-items: center; px: 20px; }
+        .top-bar { position: fixed; top: 0; left: 0; right: 0; height: 50px; background: rgba(0,0,0,0.9); border-bottom: 1px solid #333; z-index: 2000; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; }
         .pcc-panel { position: absolute; top: 70px; left: 20px; z-index: 1000; width: 340px; background: rgba(0,0,0,0.95); border-left: 4px solid #00f2ff; padding: 20px; border-radius: 0 15px 15px 0; }
         .bus-hex { width: 24px; height: 16px; background: #00f2ff; clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); border: 2px solid white; transition: all 0.3s; }
         @keyframes panic { 0%, 100% { background: #050505; } 50% { background: #600; } }
     </style>
 </head>
 <body>
-    <div class="top-bar flex justify-between items-center px-6">
+    <div class="top-bar">
         <div class="flex items-center gap-6">
             <h1 class="text-cyan-400 font-bold text-xs tracking-[5px]">IRIS 58 GLOBAL</h1>
             <div class="text-[9px] uppercase text-zinc-500">Unités: <span id="count-bus" class="text-white">0</span></div>
@@ -28,7 +28,7 @@
 
     <div class="pcc-panel shadow-2xl">
         <div id="console" class="text-[8px] text-cyan-600 h-64 overflow-y-auto font-mono flex flex-col-reverse mb-6 bg-black/80 p-3 border border-zinc-900 rounded">
-            <div>> PCC Ligne 58 Prêt.</div>
+            <div>> Système prêt. En attente de données...</div>
         </div>
         
         <select id="select-bus" class="w-full bg-zinc-900 border border-zinc-800 text-[10px] p-3 mb-4 rounded text-cyan-400 outline-none font-bold italic">
@@ -46,12 +46,13 @@
             <input type="text" id="input-msg" placeholder="Consigne directe..." class="flex-1 bg-black border border-zinc-800 text-[10px] p-3 rounded outline-none focus:border-cyan-500">
             <button onclick="envoyerMessage()" class="bg-cyan-600 px-4 rounded text-black font-black text-[10px]">ENVOYER</button>
         </div>
+        <button onclick="telechargerMemoire()" class="w-full mt-4 border border-zinc-800 p-1 text-[6px] uppercase text-zinc-600 hover:text-white transition-colors">Exporter Mémoire IA (JSON)</button>
     </div>
 
     <div id="map"></div>
 
     <script>
-        let map, fleet = {};
+        let map, fleet = {}, memoire_iris = [];
         const PCC_ID = 'IRIS-PCC-58-GLOBAL';
 
         function init() {
@@ -59,10 +60,12 @@
             L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
             
             const peer = new Peer(PCC_ID);
-            peer.on('open', (id) => log(`Serveur de régulation opérationnel.`, "text-green-500"));
+            peer.on('open', (id) => log(`Serveur actif : ${id}`, "text-green-500"));
 
             peer.on('connection', (conn) => {
                 conn.on('data', (d) => {
+                    stockerData(d.type, d); // Mémoire IA
+
                     if (d.type === 'position') {
                         if (!fleet[d.id]) {
                             fleet[d.id] = { marker: null };
@@ -82,6 +85,10 @@
             setInterval(() => { document.getElementById('pcc-clock').innerText = new Date().toLocaleTimeString(); }, 1000);
         }
 
+        function stockerData(type, d) {
+            memoire_iris.push({ timestamp: new Date().toISOString(), type, police: d.police, content: d });
+        }
+
         function updateMap(d) {
             const delayTxt = d.delay > 1 ? ` [-${d.delay}']` : (d.delay < -1 ? ` [+${Math.abs(d.delay)}']` : " [H]");
             const label = `POL ${d.police}${delayTxt}`;
@@ -96,13 +103,16 @@
         }
 
         function setMsg(t) { document.getElementById('input-msg').value = t; }
+        
         function envoyerMessage() {
             const target = document.getElementById('select-bus').value;
             const txt = document.getElementById('input-msg').value;
             if(!txt) return;
-            if(target === "all") Object.values(fleet).forEach(b => b.connection.send({type:'message_pcc', texte:txt}));
-            else fleet[target].connection.send({type:'message_pcc', texte:txt});
+            const msg = {type: 'message_pcc', texte: txt};
+            if(target === "all") Object.values(fleet).forEach(b => b.connection.send(msg));
+            else fleet[target].connection.send(msg);
             log(`✉️ ENVOI : ${txt}`);
+            stockerData('ENVOI_PCC', {dest: target, msg: txt});
             document.getElementById('input-msg').value = "";
         }
 
@@ -117,6 +127,12 @@
             document.body.style.animation = "panic 0.5s infinite";
             log(`🚨 SOS POLICE ${p}`, "text-red-500 font-black italic underline");
             setTimeout(() => { document.body.style.animation = "none"; }, 10000);
+        }
+
+        function telechargerMemoire() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(memoire_iris));
+            const dl = document.createElement('a'); dl.setAttribute("href", dataStr); dl.setAttribute("download", "iris_memory.json");
+            dl.click();
         }
 
         window.onload = init;

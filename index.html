@@ -2,109 +2,60 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IRIS 58 - Hub d'Identification</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
     <style>
-        :root { --iris-blue: #00f2ff; --iris-alert: #ff3e3e; --iris-bg: #0a0a0a; }
-        body, html { margin: 0; padding: 0; background: var(--iris-bg); font-family: 'sans-serif'; color: white; overflow: hidden; height: 100%; }
-        #map { height: 100vh; width: 100vw; z-index: 1; }
-
-        /* Le panneau de contrôle IRIS */
-        .pcc-overlay {
-            position: absolute; top: 20px; left: 20px; z-index: 1000;
-            background: rgba(10, 10, 10, 0.95); border-left: 4px solid var(--iris-blue);
-            padding: 15px; width: 320px; pointer-events: none;
-        }
-        .status-badge { display: inline-block; padding: 2px 8px; border: 1px solid var(--iris-blue); color: var(--iris-blue); font-size: 10px; }
-        .live-indicator { display: inline-block; width: 8px; height: 8px; background: #70ff00; border-radius: 50%; margin-right: 5px; animation: pulse-live 1s infinite; }
-        @keyframes pulse-live { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-        
-        .pcc-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
-        .stat-box { background: rgba(255, 255, 255, 0.05); border: 1px solid #333; padding: 8px; text-align: center; }
-        .stat-value { color: var(--iris-blue); font-size: 18px; display: block; font-weight: bold; }
-        .stat-label { font-size: 9px; text-transform: uppercase; color: #666; }
-
-        #reg-console { height: 120px; overflow-y: auto; font-family: monospace; font-size: 10px; color: #aaa; border-top: 1px solid #333; margin-top: 10px; }
-        .bus-ping { width: 14px; height: 14px; border-radius: 50%; animation: pulse 1.8s infinite; border: 2px solid white; }
-        @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(3.5); opacity: 0; } }
-        .btn-collecte { pointer-events: auto; background: #111; border: 1px solid #333; color: #666; font-size: 9px; padding: 5px; margin-top: 10px; width: 100%; cursor: pointer; }
+        body { background: #000; font-family: 'Orbitron', sans-serif; color: white; height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .card { background: #111; border: 1px solid #333; transition: all 0.3s; }
+        .card:hover { border-color: #00f2ff; box-shadow: 0 0 20px rgba(0, 242, 255, 0.2); }
+        input { background: #000; border: 1px solid #333; color: #00f2ff; padding: 10px; text-align: center; font-size: 14px; width: 100%; border-radius: 4px; }
+        input:focus { outline: none; border-color: #00f2ff; }
+        label { font-size: 9px; color: #666; text-transform: uppercase; margin-bottom: 4px; display: block; }
     </style>
 </head>
-
 <body>
-    <div class="pcc-overlay">
-        <div class="flex justify-between items-center mb-2">
-            <div class="status-badge"><span class="live-indicator"></span>IRIS LIVE</div>
-            <div class="text-[10px] text-zinc-500">LIGNE 58</div>
-        </div>
-        <h1 class="text-xl font-bold tracking-wider text-white">CENTRE DE RÉGULATION</h1>
-        
-        <div class="pcc-stats">
-            <div class="stat-box">
-                <span id="count-units" class="stat-value">0</span>
-                <span class="stat-label">Bus en ligne</span>
+    <div class="max-w-4xl w-full px-6">
+        <header class="text-center mb-12">
+            <h1 class="text-3xl font-bold tracking-[8px] mb-2">IRIS <span class="text-cyan-400">58</span></h1>
+            <p class="text-[9px] text-zinc-500 uppercase tracking-[3px]">Authentification Système</p>
+        </header>
+
+        <div class="grid md:grid-cols-2 gap-8">
+            <div class="card p-8 rounded-xl">
+                <div class="text-3xl mb-4 text-center">🚌</div>
+                <h2 class="text-sm font-bold mb-6 text-center uppercase tracking-widest">Conducteur</h2>
+                <div class="space-y-4 mb-6">
+                    <div><label>Numéro de Service</label><input type="number" id="service_num" placeholder="Ex: 05801"></div>
+                    <div><label>Numéro de Police (Voiture)</label><input type="number" id="police_num" placeholder="Ex: 8500"></div>
+                </div>
+                <button onclick="connexionChauffeur()" class="w-full bg-cyan-900/30 border border-cyan-500 py-3 text-[10px] font-bold uppercase hover:bg-cyan-500 hover:text-black transition-all">Ouvrir la vacation</button>
             </div>
-            <div class="stat-box">
-                <span id="last-ping" class="stat-value">--:--</span>
-                <span class="stat-label">Dernière MAJ</span>
+
+            <div class="card p-8 rounded-xl">
+                <div class="text-3xl mb-4 text-center">🖥️</div>
+                <h2 class="text-sm font-bold mb-6 text-center uppercase tracking-widest">Régulation</h2>
+                <div class="space-y-4 mb-6">
+                    <div><label>Matricule Agent</label><input type="password" id="agent_id" placeholder="******"></div>
+                </div>
+                <button onclick="connexionPCC()" class="w-full bg-zinc-800 border border-zinc-600 py-3 text-[10px] font-bold uppercase hover:bg-white hover:text-black transition-all">Accès Poste Central</button>
             </div>
         </div>
-        <div id="reg-console"><div>[SYSTEM] Scanner actif...</div></div>
-        <button class="btn-collecte" onclick="exportHistory()">TÉLÉCHARGER COLLECTE (JSON)</button>
     </div>
 
-    <div id="map"></div>
-
     <script>
-        let map, fleet = {}, paths = {}, historyData = [], colorIndex = 0;
-        const PCC_ID = 'IRIS-PCC-58-GLOBAL';
-        const palette = ['#00f2ff', '#70ff00', '#ff00ea', '#ffae00', '#bd00ff', '#ff3c00'];
-
-        function initMap() {
-            map = L.map('map', { zoomControl: false }).setView([48.828, 2.327], 14);
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
-            initPeer();
+        function connexionChauffeur() {
+            const s = document.getElementById('service_num').value;
+            const p = document.getElementById('police_num').value;
+            if(!s || !p) return alert("Saisie incomplète");
+            window.location.href = `chauffeur_saeiv_58.html?service=${s}&police=${p}`;
         }
-
-        function updateBus(id, lat, lon) {
-            const pos = [lat, lon];
-            historyData.push({ id, lat, lon, t: new Date().toISOString() });
-            
-            // Mise à jour des compteurs visuels
-            document.getElementById('count-units').innerText = Object.keys(fleet).length + (!fleet[id] ? 1 : 0);
-            document.getElementById('last-ping').innerText = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-
-            if (!fleet[id]) {
-                const color = palette[colorIndex % palette.length]; colorIndex++;
-                fleet[id] = L.marker(pos, {
-                    icon: L.divIcon({ html: `<div class="bus-ping" style="background:${color}; box-shadow: 0 0 10px ${color};"></div>` })
-                }).addTo(map).bindTooltip(id, { permanent: true, direction: 'top', offset: [0, -10] });
-                paths[id] = L.polyline([pos], { color: color, weight: 3, opacity: 0.6, dashArray: '5, 10' }).addTo(map);
-            } else {
-                fleet[id].setLatLng(pos);
-                paths[id].addLatLng(pos);
-            }
+        function connexionPCC() {
+            const m = document.getElementById('agent_id').value;
+            if(!m) return alert("Matricule requis");
+            window.location.href = `pcc_controle.html?agent=${m}`;
         }
-
-        function initPeer() {
-            const peer = new Peer(PCC_ID, { debug: 2 });
-            peer.on('connection', (conn) => {
-                conn.on('data', (data) => { if (data.type === 'position') updateBus(data.id, data.lat, data.lon); });
-            });
-        }
-
-        function exportHistory() {
-            const blob = new Blob([JSON.stringify(historyData, null, 2)], {type: "application/json"});
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = `IRIS_DATA.json`;
-            a.click();
-        }
-
-        window.onload = initMap;
     </script>
 </body>
 </html>

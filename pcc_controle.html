@@ -2,220 +2,144 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>IRIS 58 - CENTRE DE RÉGULATION</title>
+    <title>IRIS 58 - PCC STRATÉGIQUE</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
-
     <style>
-        :root {
-            --iris-blue: #00f2ff;
-            --iris-orange: #ffae00;
-            --iris-alert: #ff3e3e;
-            --iris-bg: #050505;
-            --glass: rgba(10, 10, 10, 0.9);
-        }
+        :root { --iris-blue: #00f2ff; --iris-orange: #ffae00; --iris-alert: #ff3e3e; --iris-bg: #050505; }
+        body { margin: 0; background: var(--iris-bg); font-family: 'Orbitron', sans-serif; color: white; overflow: hidden; }
+        #map { height: 100vh; width: 100vw; filter: brightness(0.4) contrast(1.2); }
+        
+        /* Panneaux */
+        .glass-panel { background: rgba(10, 10, 10, 0.9); backdrop-filter: blur(10px); border: 1px solid rgba(0, 242, 255, 0.1); }
+        .sidebar { position: absolute; top: 20px; left: 20px; z-index: 1000; width: 380px; bottom: 20px; display: flex; flex-direction: column; }
+        .tech-panel { position: absolute; top: 20px; right: 20px; z-index: 1000; width: 400px; }
 
-        body, html { 
-            margin: 0; padding: 0; background: var(--iris-bg); 
-            font-family: 'Orbitron', sans-serif; color: white; 
-            overflow: hidden; height: 100%; 
-        }
-
-        #map { height: 100vh; width: 100vw; z-index: 1; filter: brightness(0.6) contrast(1.2); }
-
-        /* Effet de Scanlines (Cockpit) */
-        body::before {
-            content: " "; display: block; position: absolute; top: 0; left: 0; bottom: 0; right: 0;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), 
-                        linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
-            z-index: 1001; background-size: 100% 3px, 3px 100%; pointer-events: none;
-        }
-
-        /* Panneau Glassmorphism */
-        .pcc-overlay {
-            position: absolute; top: 20px; left: 20px; z-index: 1000;
-            background: var(--glass); backdrop-filter: blur(10px);
-            border-left: 4px solid var(--iris-blue); border-right: 1px solid rgba(0,242,255,0.2);
-            padding: 20px; width: 350px; box-shadow: 0 0 30px rgba(0,0,0,0.8);
-        }
-
-        .status-badge { 
-            display: inline-block; padding: 4px 12px; border: 1px solid var(--iris-blue); 
-            color: var(--iris-blue); font-size: 10px; letter-spacing: 2px;
-        }
-
-        .live-indicator { 
-            display: inline-block; width: 8px; height: 8px; background: #70ff00; 
-            border-radius: 50%; margin-right: 8px; animation: pulse-live 1s infinite; 
-        }
-
-        @keyframes pulse-live { 0%, 100% { opacity: 1; shadow: 0 0 10px #70ff00; } 50% { opacity: 0.3; } }
-
-        /* Style des bus (Hexagones) */
-        .bus-ping {
-            width: 24px; height: 14px; position: relative;
-            clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
-            transition: all 0.5s ease; border: 1px solid white;
-        }
-
-        .hex-pulse { animation: pulse-hex 2s infinite; }
-        @keyframes pulse-hex { 
-            0% { transform: scale(1); filter: drop-shadow(0 0 2px var(--iris-blue)); }
-            50% { transform: scale(1.2); filter: drop-shadow(0 0 15px var(--iris-blue)); }
-            100% { transform: scale(1); filter: drop-shadow(0 0 2px var(--iris-blue)); }
-        }
-
-        #reg-console { 
-            height: 150px; overflow-y: auto; font-family: monospace; 
-            font-size: 11px; color: #00f2ff; background: rgba(0,0,0,0.3);
-            border: 1px solid #1a1a1a; margin-top: 15px; padding: 10px;
-        }
-
-        .consigne-box {
-            background: rgba(255, 174, 0, 0.1); border: 1px solid var(--iris-orange);
-            padding: 10px; margin-top: 10px; display: none;
-        }
+        /* KPI IDFM */
+        .kpi-card { background: rgba(20,20,20,0.8); border-top: 2px solid var(--iris-blue); padding: 10px; }
+        .kpi-value { font-size: 18px; font-weight: bold; color: var(--iris-blue); }
+        
+        .bus-hex { width: 20px; height: 12px; clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); }
     </style>
 </head>
-
 <body>
-    <div class="pcc-overlay">
-        <div class="flex justify-between items-center mb-4">
-            <div class="status-badge"><span class="live-indicator"></span>IRIS SYSTEM ACTIVE</div>
-            <div class="text-[10px] text-zinc-500">UNIT: LIGNE 58</div>
-        </div>
+
+    <div class="sidebar glass-panel p-4 overflow-y-auto">
+        <h1 class="text-xl font-bold border-b border-cyan-900 pb-2 mb-4">IRIS PRIME 58</h1>
         
-        <h1 class="text-2xl font-bold tracking-tighter text-white mb-1">HUB RÉGULATION</h1>
-        <p class="text-[9px] text-cyan-500 mb-6 uppercase tracking-[3px]">Antigravity Interface v2.6</p>
-
-        <div class="grid grid-cols-2 gap-4 mb-4">
-            <div class="bg-zinc-900/50 p-3 border border-zinc-800">
-                <span id="count-units" class="block text-2xl font-bold text-white">0</span>
-                <span class="text-[8px] text-zinc-500 uppercase">Unités en ligne</span>
-            </div>
-            <div class="bg-zinc-900/50 p-3 border border-zinc-800">
-                <span id="last-ping" class="block text-2xl font-bold text-cyan-400">--:--</span>
-                <span class="text-[8px] text-zinc-500 uppercase">Dernier Signal</span>
+        <div class="mb-6">
+            <h2 class="text-[10px] text-zinc-500 mb-2 tracking-widest uppercase">Actions de Régulation</h2>
+            <div class="grid grid-cols-2 gap-2">
+                <button onclick="agir('COUPLE')" class="bg-blue-900/30 border border-blue-500 text-[9px] py-2 hover:bg-blue-500">COUPLER UNITÉS</button>
+                <button onclick="agir('SUPPR')" class="bg-red-900/30 border border-red-500 text-[9px] py-2 hover:bg-red-500 text-red-200">SUPPRESSION TR</button>
             </div>
         </div>
 
-        <div id="consigne-alerte" class="consigne-box">
-            <div class="text-[10px] text-orange-400 font-bold">⚠️ MANŒUVRE EN COURS</div>
-            <div id="consigne-detail" class="text-[9px] text-white">Unité 5801 : Zone Châtelet</div>
+        <div class="mb-6">
+            <h2 class="text-[10px] text-zinc-500 mb-2 tracking-widest uppercase">Bilan Manœuvres (Temps Réel)</h2>
+            <div id="manoeuvre-list" class="space-y-2 text-[10px]">
+                </div>
         </div>
 
-        <div id="reg-console">
-            <div>[SYS] Initialisation Antigravity...</div>
-            <div>[SYS] Scan zones de retournement OK.</div>
-        </div>
+        <div id="console" class="mt-auto h-32 bg-black text-[9px] p-2 font-mono text-cyan-400 overflow-y-auto"></div>
+    </div>
 
-        <button onclick="exportHistory()" class="mt-4 w-full py-2 bg-transparent border border-cyan-900 text-cyan-900 text-[10px] hover:bg-cyan-900 hover:text-white transition-all uppercase tracking-widest">
-            Extraction Logs JSON
-        </button>
+    <div class="tech-panel space-y-4">
+        <div class="glass-panel p-4">
+            <h2 class="text-xs font-bold mb-3 text-center border-b border-zinc-800 pb-2 uppercase tracking-tighter">Tableau de Bord IDFM</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="kpi-card text-center">
+                    <div class="text-[8px] text-zinc-400">KM THÉORIQUES</div>
+                    <div id="km-theo" class="kpi-value">412.4 km</div>
+                </div>
+                <div class="kpi-card text-center">
+                    <div class="text-[8px] text-zinc-400">KM EFFECTUÉS</div>
+                    <div id="km-reel" class="kpi-value text-green-400">0.0 km</div>
+                </div>
+                <div class="kpi-card text-center">
+                    <div class="text-[8px] text-zinc-400">KM PERDUS (MAN.)</div>
+                    <div id="km-perdu" class="text-red-400 font-bold">0.0 km</div>
+                </div>
+                <div class="kpi-card text-center">
+                    <div class="text-[8px] text-zinc-400">RESPECT CONTRAT</div>
+                    <div id="idfm-percent" class="kpi-value">--%</div>
+                </div>
+            </div>
+            <div class="mt-4 p-2 bg-zinc-900 text-[9px]">
+                <div class="flex justify-between"><span>TM MOYEN :</span><span id="tm-val">12.4 km/h</span></div>
+                <div class="flex justify-between"><span>DÉPARTS RÉALISÉS :</span><span id="departs-val">0 / 84</span></div>
+            </div>
+        </div>
     </div>
 
     <div id="map"></div>
 
     <script>
-        let map, fleet = {}, historyData = [];
+        let map, fleet = {}, logs = [];
         const PCC_ID = 'IRIS-PCC-58-GLOBAL';
         
-        // Coordonnées des zones de manœuvre selon consignes de ligne
-        const zonesManoeuvre = {
-            "VLM": { name: "Vanves Michelet", coords: [48.8212, 2.2901], radius: 120 },
-            "CHT": { name: "Châtelet", coords: [48.8582, 2.3465], radius: 80 }
-        };
+        // Tracé théorique de la ligne 58 (Simplifié pour l'exemple)
+        const traceLigne58 = [
+            [48.8212, 2.2901], [48.8250, 2.3000], [48.8350, 2.3150], [48.8450, 2.3300], [48.8582, 2.3465]
+        ];
 
-        function initMap() {
-            map = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.828, 2.327], 14);
+        function init() {
+            map = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.838, 2.318], 13);
+            
+            // Carte Sombre
             L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
-            
-            // Tracer les cercles de zones de retournement
-            Object.values(zonesManoeuvre).forEach(zone => {
-                L.circle(zone.coords, {
-                    color: '#ffae00', weight: 1, fillColor: '#ffae00', fillOpacity: 0.1, dashArray: '5, 10'
-                }).addTo(map);
-            });
 
-            initPeer();
-        }
+            // Dessin du parcours de la 58
+            L.polyline(traceLigne58, {color: '#00f2ff', weight: 3, opacity: 0.5, dashArray: '10, 10'}).addTo(map);
 
-        function updateBus(id, lat, lon, etat = "EN_LIGNE") {
-            const pos = [lat, lon];
-            let inManoeuvre = false;
-            let currentZone = "";
-
-            // Vérification Géofencing Manœuvre
-            Object.keys(zonesManoeuvre).forEach(z => {
-                const dist = map.distance(pos, zonesManoeuvre[z].coords);
-                if (dist < zonesManoeuvre[z].radius) {
-                    inManoeuvre = true;
-                    currentZone = zonesManoeuvre[z].name;
-                }
-            });
-
-            const color = inManoeuvre ? '#ffae00' : '#00f2ff';
-            const shapeStyle = inManoeuvre ? 'clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);' : '';
-
-            if (!fleet[id]) {
-                fleet[id] = L.marker(pos, {
-                    icon: L.divIcon({
-                        className: 'iris-icon',
-                        html: `<div class="bus-ping hex-pulse" style="background:${color}; ${shapeStyle} shadow: 0 0 10px ${color};"></div>`
-                    })
-                }).addTo(map).bindTooltip(id, { permanent: false, direction: 'top' });
-                
-                logToConsole(`[NEW] Unité ${id} connectée.`);
-            } else {
-                fleet[id].setLatLng(pos);
-                fleet[id].setIcon(L.divIcon({
-                    className: 'iris-icon',
-                    html: `<div class="bus-ping hex-pulse" style="background:${color}; ${shapeStyle} shadow: 0 0 10px ${color};"></div>`
-                }));
-            }
-
-            // Gestion de l'affichage des consignes
-            if (inManoeuvre) {
-                document.getElementById('consigne-alerte').style.display = 'block';
-                document.getElementById('consigne-detail').innerText = `${id} : Retournement ${currentZone}`;
-            }
-
-            document.getElementById('count-units').innerText = Object.keys(fleet).length;
-            document.getElementById('last-ping').innerText = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            
-            historyData.push({ id, lat, lon, status: inManoeuvre ? 'MANOEUVRE' : 'LIGNE', time: new Date().toISOString() });
-        }
-
-        function initPeer() {
             const peer = new Peer(PCC_ID);
             peer.on('connection', (conn) => {
                 conn.on('data', (data) => {
-                    if (data.type === 'position') updateBus(data.id, data.lat, data.lon);
+                    updateBus(data);
+                    calculerKPI(data);
                 });
             });
+        }
+
+        function updateBus(d) {
+            const color = d.status ? '#ffae00' : '#00f2ff';
+            if (!fleet[d.id]) {
+                fleet[d.id] = L.marker([d.lat, d.lon], { icon: L.divIcon({ className: '', html: `<div class="bus-hex" style="background:${color}"></div>` }) }).addTo(map);
+                log(`Unité ${d.id} en ligne.`);
+            } else {
+                fleet[d.id].setLatLng([d.lat, d.lon]);
+            }
+        }
+
+        let kmCumules = 0;
+        let kmPerdus = 0;
+
+        function calculerKPI(d) {
+            // Simulation simplifiée du calcul kilométrique
+            kmCumules += 0.1;
+            if(d.status) kmPerdus += 0.05; // Simulation km perdus pendant manoeuvre
             
-            peer.on('error', (err) => {
-                logToConsole(`[ERR] PeerJS: ${err.type}`);
-            });
+            document.getElementById('km-reel').innerText = kmCumules.toFixed(1) + " km";
+            document.getElementById('km-perdu').innerText = kmPerdus.toFixed(1) + " km";
+            
+            let respect = (kmCumules / 412.4) * 100;
+            document.getElementById('idfm-percent').innerText = respect.toFixed(1) + "%";
         }
 
-        function logToConsole(msg) {
-            const consoleDiv = document.getElementById('reg-console');
-            consoleDiv.innerHTML = `<div>[${new Date().toLocaleTimeString()}] ${msg}</div>` + consoleDiv.innerHTML;
+        function agir(type) {
+            alert("IRIS : Action de régulation envoyée aux terminaux : " + type);
+            log("ACTION : " + type + " envoyée.");
         }
 
-        function exportHistory() {
-            const blob = new Blob([JSON.stringify(historyData, null, 2)], {type: "application/json"});
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = `IRIS_COLLECTE_58.json`;
-            a.click();
+        function log(m) {
+            const c = document.getElementById('console');
+            c.innerHTML = `<div>> ${m}</div>` + c.innerHTML;
         }
 
-        window.onload = initMap;
+        window.onload = init;
     </script>
 </body>
 </html>

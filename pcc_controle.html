@@ -2,85 +2,103 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>IRIS 58 - PCC CENTRAL</title>
+    <title>IRIS 58 - PCC CENTRAL v3.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
     <style>
-        body { margin: 0; background: #050505; font-family: 'Orbitron', sans-serif; color: white; overflow: hidden; }
+        body { margin: 0; background: #050505; font-family: 'Orbitron', sans-serif; color: white; overflow: hidden; transition: background 0.3s; }
         #map { height: 100vh; width: 100vw; filter: brightness(0.4) contrast(1.2); }
-        .pcc-panel { position: absolute; top: 20px; left: 20px; z-index: 1000; width: 300px; background: rgba(0,0,0,0.9); border-left: 4px solid #00f2ff; padding: 15px; border-radius: 0 8px 8px 0; }
-        .bus-hex { width: 22px; height: 14px; background: #00f2ff; clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); border: 1px solid white; }
-        @keyframes panic { 0%, 100% { background: #050505; } 50% { background: #600; } }
+        .pcc-panel { position: absolute; top: 20px; left: 20px; z-index: 1000; width: 320px; background: rgba(0,0,0,0.9); border-left: 4px solid #00f2ff; padding: 15px; }
+        .bus-hex { width: 24px; height: 15px; background: #00f2ff; clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); border: 1px solid white; }
+        @keyframes panic { 0%, 100% { background: #050505; } 50% { background: #500; } }
     </style>
 </head>
 <body>
     <div class="pcc-panel shadow-2xl">
-        <h1 class="text-xs font-bold border-b border-zinc-800 pb-2 mb-4 tracking-tighter uppercase">Régulation Ligne 58</h1>
-        <div id="console" class="text-[9px] text-cyan-500 h-64 overflow-y-auto font-mono flex flex-col-reverse space-y-1">
-            <div>> Prêt pour réception...</div>
+        <h1 class="text-[11px] font-bold border-b border-zinc-800 pb-2 mb-4 tracking-widest text-cyan-400">RÉGULATION LIGNE 58</h1>
+        <div id="regul-info" class="text-[9px] text-zinc-500 mb-4 uppercase">Agent : Chargement...</div>
+        
+        <div id="console" class="text-[9px] text-cyan-500 h-64 overflow-y-auto font-mono flex flex-col-reverse space-y-1 bg-black/50 p-2 border border-zinc-900">
+            <div class="text-zinc-600">> Initialisation système...</div>
         </div>
-        <button onclick="stopSOS()" id="btn-sos" class="mt-4 w-full bg-red-900/40 border border-red-500 py-2 text-[10px] text-red-500 font-bold hidden">ACQUITTER SOS</button>
+        
+        <button onclick="stopSOS()" id="btn-sos" class="mt-4 w-full bg-red-600/20 border border-red-500 py-2 text-[10px] text-red-500 font-bold hidden animate-pulse">ACQUITTER ALERTE SOS</button>
     </div>
 
     <div id="map"></div>
 
     <script>
+        const params = new URLSearchParams(window.location.search);
+        const AGENT_MATRICULE = params.get('agent') || "VISITEUR";
+        
         let map, fleet = {};
         const PCC_ID = 'IRIS-PCC-58-GLOBAL';
 
         function init() {
+            document.getElementById('regul-info').innerText = `Agent Régulateur : ${AGENT_MATRICULE}`;
+            
             map = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.840, 2.318], 14);
             L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
             const peer = new Peer(PCC_ID);
+            peer.on('open', (id) => log(`PCC EN LIGNE (ID: ${id})`, "text-green-400"));
+
             peer.on('connection', (conn) => {
                 conn.on('data', (data) => {
                     if (data.type === 'position') {
-                        fleet[data.id] = { ...data, connection: conn, lastSeen: Date.now() };
+                        fleet[data.id] = { ...data, connection: conn };
                         updateMap(data);
-                        sendIntervals();
+                        calculateIntervals();
                     }
                     if (data.type === 'SOS') {
-                        triggerSOS(data.id);
+                        triggerSOS(data.police);
                     }
                 });
             });
         }
 
         function updateMap(d) {
+            const label = `POL ${d.police} (SVC ${d.service})`;
             if (!fleet[d.id].marker) {
                 fleet[d.id].marker = L.marker([d.lat, d.lon], { 
                     icon: L.divIcon({ className: '', html: `<div class="bus-hex"></div>` }) 
-                }).addTo(map).bindTooltip(d.id, {permanent: true, direction: 'right', className: 'bg-transparent border-0 text-white text-[8px] orbitron'});
+                }).addTo(map).bindTooltip(label, {
+                    permanent: true, direction: 'right', className: 'bg-black/90 border-0 text-white text-[9px] orbitron px-2 py-1'
+                });
+                log(`ENTRÉE EN LIGNE : POL ${d.police}`, "text-white");
             } else {
                 fleet[d.id].marker.setLatLng([d.lat, d.lon]);
             }
         }
 
-        function sendIntervals() {
+        function calculateIntervals() {
             const busArr = Object.values(fleet).sort((a, b) => b.lat - a.lat);
             busArr.forEach((bus, i) => {
                 let p = "--", n = "--";
                 if (i > 0) p = Math.round(map.distance([bus.lat, bus.lon], [busArr[i-1].lat, busArr[i-1].lon]) / 250);
                 if (i < busArr.length - 1) n = Math.round(map.distance([bus.lat, bus.lon], [busArr[i+1].lat, busArr[i+1].lon]) / 250);
-                if (bus.connection.open) bus.connection.send({ type: 'intervals', prev: p, next: n });
+                if (bus.connection && bus.connection.open) bus.connection.send({ type: 'intervals', prev: p, next: n });
             });
         }
 
-        function triggerSOS(id) {
+        function triggerSOS(police) {
             document.body.style.animation = "panic 0.5s infinite";
             document.getElementById('btn-sos').classList.remove('hidden');
-            const c = document.getElementById('console');
-            c.innerHTML += `<div class="text-red-500 font-bold">> 🚨 SOS : UNITÉ ${id}</div>`;
+            log(`🚨 ALERTE SOS : VOITURE ${police}`, "text-red-500 font-bold");
         }
 
         function stopSOS() {
             document.body.style.animation = "none";
             document.body.style.background = "#050505";
             document.getElementById('btn-sos').classList.add('hidden');
+        }
+
+        function log(m, cls = "text-cyan-500") {
+            const c = document.getElementById('console');
+            c.innerHTML += `<div class="${cls}">> ${m}</div>`;
         }
 
         window.onload = init;

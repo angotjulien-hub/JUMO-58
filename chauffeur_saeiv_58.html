@@ -3,160 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>IRIS 58 - TERMINAL SAEIV v2.8</title>
+    <title>IRIS 58 - TERMINAL SAEIV v3.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@400;700&display=swap" rel="stylesheet">
     <style>
         :root { --iris-blue: #00f2ff; --sae-blue: #2c5282; --sae-bg: #1a1a1a; }
         body, html { margin: 0; background: #000; font-family: 'Inter', sans-serif; color: white; height: 100%; overflow: hidden; }
         .orbitron { font-family: 'Orbitron', sans-serif; }
-        #map { height: 100vh; width: 100vw; filter: brightness(0.5); }
+        #map { height: 100vh; width: 100vw; filter: brightness(0.5) saturate(1.2); transition: transform 0.3s; }
         .ui-panel { position: absolute; z-index: 1000; background: rgba(10, 10, 10, 0.9); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
         
-        /* Menu SAE Style Photo */
+        /* Menu SAE Style NAVINECO */
         #sub-menu { bottom: 0; left: 0; right: 0; height: 80%; z-index: 2000; background: var(--sae-bg); border-top: 4px solid var(--sae-blue); padding: 15px; border-radius: 20px 20px 0 0; }
         .sae-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
-        .sae-btn { background: #e2e8f0; color: #1a202c; height: 90px; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 4px; text-align: center; padding: 5px; transition: active 0.1s; }
-        .sae-btn:active { background: #cbd5e0; }
-        .sae-btn span.icon { font-size: 24px; margin-bottom: 4px; }
-        .sae-btn label { font-size: 9px; font-weight: 800; line-height: 1.1; text-transform: uppercase; }
+        .sae-btn { background: #e2e8f0; color: #1a202c; height: 85px; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 4px; text-align: center; padding: 5px; }
+        .sae-btn span.icon { font-size: 22px; margin-bottom: 2px; }
+        .sae-btn label { font-size: 8px; font-weight: 900; line-height: 1.1; text-transform: uppercase; }
 
-        /* Page Alarmes */
         #page-alarmes { position: absolute; inset: 0; z-index: 3000; background: var(--sae-bg); display: none; }
-
-        .direction-arrow { width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 25px solid var(--iris-blue); }
+        .direction-arrow { width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 25px solid var(--iris-blue); filter: drop-shadow(0 0 8px var(--iris-blue)); }
     </style>
 </head>
 <body>
 
-    <div class="ui-panel top-0 left-0 right-0 p-4 border-none bg-black/90 flex justify-between items-center">
+    <div class="ui-panel top-0 left-0 right-0 p-4 border-none bg-black/95 flex justify-between items-center">
         <div class="flex items-center gap-3">
-            <div class="bg-green-600 px-3 py-1 rounded font-bold orbitron text-white">58</div>
-            <div id="next-stop-name" class="font-bold text-lg tracking-tight uppercase">Initialisation...</div>
-        </div>
-        <div class="orbitron text-right">
-            <div id="dist-stop" class="text-xs text-zinc-400">--- m</div>
-            <div id="clock" class="text-sm font-bold text-cyan-400">12:00</div>
-        </div>
-    </div>
-
-    <div class="ui-panel top-24 right-4 w-16 p-2 rounded flex flex-col gap-2 text-center orbitron border-cyan-900">
-        <div class="text-[7px] text-zinc-500">PREC</div>
-        <div id="int-prev" class="text-green-400 font-bold text-xs">--</div>
-        <div class="text-[7px] text-zinc-500">SUIV</div>
-        <div id="int-next" class="text-cyan-400 font-bold text-xs">--</div>
-    </div>
-
-    <div id="map"></div>
-
-    <button onclick="toggleMenu()" class="ui-panel bottom-20 left-6 w-14 h-14 rounded-full flex items-center justify-center bg-blue-600 border-2 border-white shadow-2xl">
-        <span class="font-bold text-[10px]">MENU</span>
-    </button>
-
-    <div id="sub-menu" class="transition-transform duration-500 translate-y-full shadow-2xl">
-        <div class="flex justify-between items-center mb-4">
-            <span class="text-[10px] font-bold text-zinc-500 orbitron">IRIS SAEIV v2.8</span>
-            <button onclick="toggleMenu()" class="bg-zinc-800 px-4 py-1 rounded text-[10px] font-bold">X</button>
-        </div>
-
-        <div class="sae-grid">
-            <div class="sae-btn" onclick="actionSAE('Service')"><span>🗼</span><label>Service</label></div>
-            <div class="sae-btn" style="background: #fbd38d;" onclick="actionSAE('Alarmes')"><span>⚠️</span><label>Liste des alarmes</label></div>
-            <div class="sae-btn"><span>📝</span><label>Signalement</label></div>
-            <div class="sae-btn"><span>✉️</span><label>Messagerie</label></div>
-            <div class="sae-btn"><span>📢</span><label>Diffusion sonore</label></div>
-            <div class="sae-btn"><span>👥</span><label>Relève</label></div>
-            <div class="sae-btn"><span>👤</span><label>Prise de service</label></div>
-            <div class="sae-btn"><span>🚌</span><label>Test exploitation</label></div>
-        </div>
-
-        <div class="mt-6 grid grid-cols-2 gap-2">
-            <button onclick="envoyerSOS()" class="bg-red-700 p-4 rounded font-bold text-xs uppercase">🚨 Appel Urgence</button>
-            <button onclick="actionSAE('Regul')" class="bg-zinc-700 p-4 rounded font-bold text-xs uppercase">📞 Appel Régul</button>
-        </div>
-    </div>
-
-    <div id="page-alarmes">
-        <div class="bg-orange-600 p-4 flex justify-between items-center text-black">
-            <h2 class="font-bold uppercase text-sm">Alarmes Actives</h2>
-            <button onclick="closeAlarmes()" class="bg-black text-white px-4 py-1 rounded text-xs">RETOUR</button>
-        </div>
-        <div class="p-4 space-y-2">
-            <div class="bg-zinc-900 p-4 border-l-4 border-green-500 flex justify-between">
-                <span class="text-xs font-bold uppercase">Liaison GPS</span>
-                <span class="text-green-500 text-xs">OPÉRATIONNEL</span>
-            </div>
-            <div class="bg-zinc-900 p-4 border-l-4 border-orange-500 flex justify-between">
-                <span class="text-xs font-bold uppercase">Régulation (IRIS)</span>
-                <span class="text-orange-500 text-xs">COUPLAGE POSSIBLE</span>
-            </div>
-            <div class="bg-zinc-900 p-4 border-l-4 border-green-500 flex justify-between">
-                <span class="text-xs font-bold uppercase">Girouette IP</span>
-                <span class="text-green-500 text-xs">OPÉRATIONNEL</span>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        let map, marker, peer, conn;
-        const AGENT_ID = 'BUS-58-' + Math.floor(Math.random()*900);
-        const stops = [{name:"Vanves Michelet",c:[48.821,2.290]},{name:"Mairie de Vanves",c:[48.823,2.295]},{name:"Alésia",c:[48.828,2.327]},{name:"Châtelet",c:[48.858,2.346]}];
-
-        function init() {
-            map = L.map('map', {zoomControl:false, attributionControl:false}).setView([48.828, 2.327], 17);
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
-            marker = L.marker([48.828, 2.327], {icon: L.divIcon({className:'', html:'<div class="direction-arrow"></div>', iconSize:[20,25]})}).addTo(map);
-            if (navigator.geolocation) navigator.geolocation.watchPosition(updateGPS, null, {enableHighAccuracy:true});
-            setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'}); }, 1000);
-            initPeer();
-        }
-
-        function toggleMenu() { document.getElementById('sub-menu').classList.toggle('translate-y-full'); }
-        function openAlarmes() { document.getElementById('page-alarmes').style.display = 'block'; toggleMenu(); }
-        function closeAlarmes() { document.getElementById('page-alarmes').style.display = 'none'; }
-
-        function actionSAE(type) {
-            if (type === 'Alarmes') openAlarmes();
-            else alert("Fonction " + type + " active");
-        }
-
-        function updateGPS(pos) {
-            const {latitude, longitude, heading} = pos.coords;
-            if (heading !== null) document.getElementById('map').style.transform = `rotate(${-heading}deg)`;
-            marker.setLatLng([latitude, longitude]);
-            map.flyTo([latitude, longitude], 17);
-            
-            let closest = stops[0], minDist = Infinity;
-            stops.forEach(s => { const d = map.distance([latitude, longitude], s.c); if(d < minDist && d > 10){minDist=d; closest=s;} });
-            document.getElementById('next-stop-name').innerText = closest.name;
-            document.getElementById('dist-stop').innerText = Math.round(minDist) + " m";
-
-            if (conn && conn.open) conn.send({type:'position', id:AGENT_ID, lat:latitude, lon:longitude});
-        }
-
-        function envoyerSOS() {
-            if (confirm("🚨 CONFIRMER APPEL URGENCE PCC ?")) {
-                if (conn && conn.open) conn.send({type: 'SOS', id: AGENT_ID});
-                toggleMenu();
-            }
-        }
-
-        function initPeer() {
-            peer = new Peer(AGENT_ID);
-            peer.on('open', () => {
-                conn = peer.connect('IRIS-PCC-58-GLOBAL');
-                conn.on('data', (d) => {
-                    if(d.type === 'intervals'){
-                        document.getElementById('int-prev').innerText = d.prev + "'";
-                        document.getElementById('int-next').innerText = d.next + "'";
-                    }
-                });
-            });
-        }
-        window.onload = init;
-    </script>
-</body>
-</html>
+            <div class="bg-green-600 px-3 py-1 rounded font-bold orbitron text-white text-sm">58</div>
+            <div>
+                <div id="next-stop-name" class="font-bold text-lg tracking-tight uppercase leading-none">Connexion...</div>
+                <div id="info-vacation" class="text-[9px] text-cyan-500 orbitron mt-1

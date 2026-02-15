@@ -2,105 +2,90 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>IRIS 58 - PCC CENTRAL v3.0</title>
+    <title>IRIS 58 - PCC CENTRAL v3.1</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
     <style>
-        body { margin: 0; background: #050505; font-family: 'Orbitron', sans-serif; color: white; overflow: hidden; transition: background 0.3s; }
-        #map { height: 100vh; width: 100vw; filter: brightness(0.4) contrast(1.2); }
+        body { margin: 0; background: #050505; font-family: 'Orbitron', sans-serif; color: white; overflow: hidden; }
+        #map { height: 100vh; width: 100vw; filter: brightness(0.3); }
         .pcc-panel { position: absolute; top: 20px; left: 20px; z-index: 1000; width: 320px; background: rgba(0,0,0,0.9); border-left: 4px solid #00f2ff; padding: 15px; }
-        .bus-hex { width: 24px; height: 15px; background: #00f2ff; clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); border: 1px solid white; }
-        @keyframes panic { 0%, 100% { background: #050505; } 50% { background: #500; } }
+        .bus-hex { width: 22px; height: 14px; background: #00f2ff; clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); border: 1px solid white; transition: background 0.5s; }
+        @keyframes panic { 0%, 100% { background: #050505; } 50% { background: #600; } }
     </style>
 </head>
 <body>
     <div class="pcc-panel shadow-2xl">
-        <h1 class="text-[11px] font-bold border-b border-zinc-800 pb-2 mb-4 tracking-widest text-cyan-400">RÉGULATION LIGNE 58</h1>
-        <div id="regul-info" class="text-[9px] text-zinc-500 mb-4 uppercase">Agent : Chargement...</div>
+        <h1 class="text-[10px] font-bold border-b border-zinc-800 pb-2 mb-4 tracking-widest text-cyan-400">PCC LIGNE 58 - REGULATION TM</h1>
+        <div id="console" class="text-[8px] text-cyan-600 h-48 overflow-y-auto font-mono flex flex-col-reverse mb-4 bg-black/50 p-2 border border-zinc-900"><div>> Système prêt.</div></div>
         
-        <div id="console" class="text-[9px] text-cyan-500 h-64 overflow-y-auto font-mono flex flex-col-reverse space-y-1 bg-black/50 p-2 border border-zinc-900">
-            <div class="text-zinc-600">> Initialisation système...</div>
+        <select id="select-bus" class="w-full bg-zinc-900 border border-zinc-800 text-[10px] p-2 mb-2 rounded text-cyan-400 outline-none">
+            <option value="all">📢 TOUTE LA LIGNE 58</option>
+        </select>
+
+        <div class="grid grid-cols-2 gap-1 mb-4">
+            <button onclick="setMsg('TENIR L\'ARRÊT POUR RECALAGE TM')" class="bg-zinc-800 hover:bg-orange-900 border border-zinc-700 p-2 text-[7px] uppercase font-bold">⏳ Recalage TM</button>
+            <button onclick="setMsg('REPRENDRE LA MARCHE NORMALE')" class="bg-zinc-800 hover:bg-green-900 border border-zinc-700 p-2 text-[7px] uppercase font-bold">🟢 Marche Normale</button>
+            <button onclick="setMsg('DANGER : PIÉTONS SUR VOIE')" class="bg-zinc-800 hover:bg-red-900 border border-zinc-700 p-2 text-[7px] uppercase font-bold">⚠️ Danger</button>
+            <button onclick="setMsg('APPEL RADIO IMMÉDIAT')" class="bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 p-2 text-[7px] uppercase font-bold">📞 Appel Radio</button>
         </div>
-        
-        <button onclick="stopSOS()" id="btn-sos" class="mt-4 w-full bg-red-600/20 border border-red-500 py-2 text-[10px] text-red-500 font-bold hidden animate-pulse">ACQUITTER ALERTE SOS</button>
+
+        <div class="flex gap-1">
+            <input type="text" id="input-msg" placeholder="Message..." class="flex-1 bg-black border border-zinc-800 text-[10px] p-2 rounded outline-none focus:border-cyan-500">
+            <button onclick="envoyerMessage()" class="bg-cyan-600 px-3 rounded text-black font-bold">></button>
+        </div>
     </div>
 
     <div id="map"></div>
 
     <script>
-        const params = new URLSearchParams(window.location.search);
-        const AGENT_MATRICULE = params.get('agent') || "VISITEUR";
-        
         let map, fleet = {};
         const PCC_ID = 'IRIS-PCC-58-GLOBAL';
 
         function init() {
-            document.getElementById('regul-info').innerText = `Agent Régulateur : ${AGENT_MATRICULE}`;
-            
             map = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.840, 2.318], 14);
             L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
-
             const peer = new Peer(PCC_ID);
-            peer.on('open', (id) => log(`PCC EN LIGNE (ID: ${id})`, "text-green-400"));
-
             peer.on('connection', (conn) => {
-                conn.on('data', (data) => {
-                    if (data.type === 'position') {
-                        fleet[data.id] = { ...data, connection: conn };
-                        updateMap(data);
-                        calculateIntervals();
+                conn.on('data', (d) => {
+                    if (d.type === 'position') {
+                        fleet[d.id] = { ...d, connection: conn };
+                        updateMap(d);
                     }
-                    if (data.type === 'SOS') {
-                        triggerSOS(data.police);
-                    }
+                    if (d.type === 'ack_message') log(`✓ REÇU PAR POLICE ${d.police}`, "text-green-500");
+                    if (d.type === 'SOS') triggerSOS(d.police);
                 });
             });
         }
 
         function updateMap(d) {
-            const label = `POL ${d.police} (SVC ${d.service})`;
+            const delayTxt = d.delay > 0 ? ` [-${d.delay}']` : (d.delay < 0 ? ` [+${Math.abs(d.delay)}']` : "");
+            const label = `POL ${d.police}${delayTxt}`;
             if (!fleet[d.id].marker) {
-                fleet[d.id].marker = L.marker([d.lat, d.lon], { 
-                    icon: L.divIcon({ className: '', html: `<div class="bus-hex"></div>` }) 
-                }).addTo(map).bindTooltip(label, {
-                    permanent: true, direction: 'right', className: 'bg-black/90 border-0 text-white text-[9px] orbitron px-2 py-1'
-                });
-                log(`ENTRÉE EN LIGNE : POL ${d.police}`, "text-white");
+                fleet[d.id].marker = L.marker([d.lat, d.lon], { icon: L.divIcon({ className:'', html:'<div class="bus-hex"></div>' }) }).addTo(map)
+                .bindTooltip(label, {permanent:true, direction:'right', className:'bg-black/90 border-0 text-white text-[9px] px-2'});
+                const opt = document.createElement('option'); opt.value = d.id; opt.text = `POLICE ${d.police}`; document.getElementById('select-bus').add(opt);
             } else {
-                fleet[d.id].marker.setLatLng([d.lat, d.lon]);
+                fleet[d.id].marker.setLatLng([d.lat, d.lon]).setTooltipContent(label);
+                fleet[d.id].marker._icon.querySelector('.bus-hex').style.background = d.delay > 3 ? "#ef4444" : (d.delay < -1 ? "#00f2ff" : "#22c55e");
             }
         }
 
-        function calculateIntervals() {
-            const busArr = Object.values(fleet).sort((a, b) => b.lat - a.lat);
-            busArr.forEach((bus, i) => {
-                let p = "--", n = "--";
-                if (i > 0) p = Math.round(map.distance([bus.lat, bus.lon], [busArr[i-1].lat, busArr[i-1].lon]) / 250);
-                if (i < busArr.length - 1) n = Math.round(map.distance([bus.lat, bus.lon], [busArr[i+1].lat, busArr[i+1].lon]) / 250);
-                if (bus.connection && bus.connection.open) bus.connection.send({ type: 'intervals', prev: p, next: n });
-            });
+        function setMsg(t) { document.getElementById('input-msg').value = t; }
+        function envoyerMessage() {
+            const target = document.getElementById('select-bus').value;
+            const txt = document.getElementById('input-msg').value;
+            if(!txt) return;
+            if(target === "all") Object.values(fleet).forEach(b => b.connection.send({type:'message_pcc', texte:txt}));
+            else fleet[target].connection.send({type:'message_pcc', texte:txt});
+            log(`✉️ ENVOI : ${txt}`);
+            document.getElementById('input-msg').value = "";
         }
 
-        function triggerSOS(police) {
-            document.body.style.animation = "panic 0.5s infinite";
-            document.getElementById('btn-sos').classList.remove('hidden');
-            log(`🚨 ALERTE SOS : VOITURE ${police}`, "text-red-500 font-bold");
-        }
-
-        function stopSOS() {
-            document.body.style.animation = "none";
-            document.body.style.background = "#050505";
-            document.getElementById('btn-sos').classList.add('hidden');
-        }
-
-        function log(m, cls = "text-cyan-500") {
-            const c = document.getElementById('console');
-            c.innerHTML += `<div class="${cls}">> ${m}</div>`;
-        }
-
+        function log(m, cls="text-cyan-600") { const c = document.getElementById('console'); c.innerHTML += `<div class="${cls}">> ${m}</div>`; }
+        function triggerSOS(p) { document.body.style.animation = "panic 0.5s infinite"; log(`🚨 SOS POLICE ${p}`, "text-red-500 font-bold"); }
         window.onload = init;
     </script>
 </body>

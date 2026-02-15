@@ -1,45 +1,18 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <title>IRIS 58 - HUB</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
-</head>
-<body class="bg-black text-white font-['Orbitron'] flex items-center justify-center h-screen">
-
-    <div class="grid grid-cols-2 gap-10">
-        <div class="p-10 border border-zinc-800 rounded-xl bg-zinc-900/50">
-            <h2 class="text-cyan-400 mb-6">CONDUCTEUR</h2>
-            <input type="number" id="svc" placeholder="Service" class="w-full bg-black p-2 mb-2 border border-zinc-700">
-            <input type="number" id="pol" placeholder="Police" class="w-full bg-black p-2 mb-4 border border-zinc-700">
-            <button onclick="goChauffeur()" class="w-full bg-cyan-600 p-3 font-bold">LANCER SAEIV</button>
-        </div>
-
-        <div class="p-10 border border-zinc-800 rounded-xl bg-zinc-900/50">
-            <h2 class="text-orange-400 mb-6">POSTE CENTRAL</h2>
-            <input type="password" id="mat" placeholder="Matricule Agent" class="w-full bg-black p-2 mb-4 border border-zinc-700">
-            <button onclick="goPCC()" class="w-full bg-orange-600 p-3 font-bold">ACCÈS RÉGULATION</button>
-        </div>
-    </div>
-
-    <script>
-        function goChauffeur() {
-            const s = document.getElementById('svc').value;
-            const p = document.getElementById('pol').value;
-            if(s && p) {
-                // On pointe précisément vers ton fichier SAEIV 58
-                window.location.href = `chauffeur_saeiv_58.html?service=${s}&police=${p}`;
-            }
+<script>
+    function ouvrirSAEIV() {
+        const s = document.getElementById('svc_input').value;
+        const p = document.getElementById('pol_input').value;
+        if(!s || !p) {
+            alert("⚠️ Erreur : Service et Police requis.");
+            return;
         }
+        // Redirection vers le fichier chauffeur.html
+        window.location.href = `chauffeur.html?service=${s}&police=${p}`;
+    }
 
-        function goPCC() {
-            const m = document.getElementById('mat').value;
-            if(m) {
-                // On pointe précisément vers ton fichier PCC
-                window.location.href = `pcc_controle.html?agent=${m}`;
-            }
-        }
-    </script>
-</body>
-</html>
+    function ouvrirPCC() {
+        const m = document.getElementById('mat_input').value;
+        if(!m) return alert("Matricule requis");
+        window.location.href = `pcc_controle.html?agent=${m}`;
+    }
+</script>

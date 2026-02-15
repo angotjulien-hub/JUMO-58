@@ -2,83 +2,36 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>IRIS 58 - PCC CENTRAL</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>IRIS 58 - TERMINAL SAEIV v2.8</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
     <style>
-        body { margin: 0; background: #050505; font-family: 'Orbitron', sans-serif; color: white; overflow: hidden; }
-        #map { height: 100vh; width: 100vw; filter: brightness(0.4) contrast(1.2); }
-        .pcc-panel { position: absolute; top: 20px; left: 20px; z-index: 1000; width: 320px; background: rgba(0,0,0,0.9); border-left: 4px solid #00f2ff; padding: 15px; }
-        .bus-hex { width: 22px; height: 14px; background: #00f2ff; clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); border: 1px solid white; }
-        @keyframes panic { 0%, 100% { background: #050505; } 50% { background: #600; } }
+        :root { --iris-blue: #00f2ff; --sae-blue: #2c5282; --sae-bg: #1a1a1a; }
+        body, html { margin: 0; background: #000; font-family: 'Inter', sans-serif; color: white; height: 100%; overflow: hidden; }
+        .orbitron { font-family: 'Orbitron', sans-serif; }
+        #map { height: 100vh; width: 100vw; filter: brightness(0.5); }
+        .ui-panel { position: absolute; z-index: 1000; background: rgba(10, 10, 10, 0.9); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
+        
+        /* Menu SAE Style Photo */
+        #sub-menu { bottom: 0; left: 0; right: 0; height: 80%; z-index: 2000; background: var(--sae-bg); border-top: 4px solid var(--sae-blue); padding: 15px; border-radius: 20px 20px 0 0; }
+        .sae-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+        .sae-btn { background: #e2e8f0; color: #1a202c; height: 90px; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 4px; text-align: center; padding: 5px; transition: active 0.1s; }
+        .sae-btn:active { background: #cbd5e0; }
+        .sae-btn span.icon { font-size: 24px; margin-bottom: 4px; }
+        .sae-btn label { font-size: 9px; font-weight: 800; line-height: 1.1; text-transform: uppercase; }
+
+        /* Page Alarmes */
+        #page-alarmes { position: absolute; inset: 0; z-index: 3000; background: var(--sae-bg); display: none; }
+
+        .direction-arrow { width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 25px solid var(--iris-blue); }
     </style>
 </head>
 <body>
-    <div class="pcc-panel">
-        <h1 class="text-sm font-bold border-b border-zinc-800 pb-2 mb-4">PCC LIGNE 58 - SEINE RIVE GAUCHE</h1>
-        <div id="console" class="text-[9px] text-cyan-500 h-64 overflow-y-auto font-mono flex flex-col-reverse">
-            <div>> Prêt pour réception NAVINECO...</div>
-        </div>
-        <button onclick="stopSOS()" class="mt-4 w-full bg-red-900/40 border border-red-500 py-2 text-[10px] text-red-500 font-bold">ACQUITTER ALERTE</button>
-    </div>
 
-    <div id="map"></div>
-
-    <script>
-        let map, fleet = {};
-        const PCC_ID = 'IRIS-PCC-58-GLOBAL';
-
-        function init() {
-            map = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.840, 2.318], 14);
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
-
-            const peer = new Peer(PCC_ID);
-            peer.on('connection', (conn) => {
-                conn.on('data', (data) => {
-                    if (data.type === 'position') {
-                        fleet[data.id] = { ...data, connection: conn };
-                        updateMap(data);
-                        sendIntervals();
-                    }
-                    if (data.type === 'SOS') {
-                        document.body.style.animation = "panic 0.5s infinite";
-                        log(`🚨 SOS RECU : UNITÉ ${data.id}`, "text-red-500 font-bold");
-                    }
-                });
-            });
-        }
-
-        function updateMap(d) {
-            if (!fleet[d.id].marker) {
-                fleet[d.id].marker = L.marker([d.lat, d.lon], { 
-                    icon: L.divIcon({ className: '', html: `<div class="bus-hex"></div>` }) 
-                }).addTo(map).bindTooltip(d.id, {permanent: true, direction: 'right', className: 'bg-transparent border-0 text-white text-[8px]'});
-            } else {
-                fleet[d.id].marker.setLatLng([d.lat, d.lon]);
-            }
-        }
-
-        function sendIntervals() {
-            const busArr = Object.values(fleet).sort((a, b) => b.lat - a.lat);
-            busArr.forEach((bus, i) => {
-                let p = "--", n = "--";
-                if (i > 0) p = Math.round(map.distance([bus.lat, bus.lon], [busArr[i-1].lat, busArr[i-1].lon]) / 250);
-                if (i < busArr.length - 1) n = Math.round(map.distance([bus.lat, bus.lon], [busArr[i+1].lat, busArr[i+1].lon]) / 250);
-                if (bus.connection.open) bus.connection.send({ type: 'intervals', prev: p, next: n });
-            });
-        }
-
-        function log(m, cls = "text-cyan-500") {
-            const c = document.getElementById('console');
-            c.innerHTML += `<div class="${cls}">> ${m}</div>`;
-        }
-
-        function stopSOS() { document.body.style.animation = "none"; document.body.style.background = "#050505"; }
-
-        window.onload = init;
-    </script>
-</body>
-</html>
+    <div class="ui-panel top-0 left-0 right-0 p-4 border-none bg-black/90 flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <div class="bg-green-600 px-3 py-1 rounded font-bold orbitron text-white

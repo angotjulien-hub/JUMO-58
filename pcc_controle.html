@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>IRIS 58 - PCC STRATÉGIQUE</title>
+    <title>IRIS 58 - PCC GLOBAL STRATÉGIQUE</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -10,30 +10,23 @@
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
     <style>
         :root { --iris-blue: #00f2ff; --iris-orange: #ffae00; --iris-bg: #050505; }
-        body { margin: 0; background: var(--iris-bg); font-family: 'Orbitron', sans-serif; color: white; overflow: hidden; }
-        #map { height: 100vh; width: 100vw; filter: brightness(0.4) contrast(1.2); }
-        .glass-panel { background: rgba(10, 10, 10, 0.9); backdrop-filter: blur(10px); border: 1px solid rgba(0, 242, 255, 0.1); }
-        .sidebar { position: absolute; top: 20px; left: 20px; z-index: 1000; width: 350px; bottom: 20px; display: flex; flex-direction: column; }
-        .kpi-panel { position: absolute; top: 20px; right: 20px; z-index: 1000; width: 300px; }
-        .bus-hex { width: 20px; height: 12px; clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); transition: all 0.3s; }
+        body { margin: 0; background: var(--iris-bg); font-family: 'Orbitron', sans-serif; color: white; overflow: hidden; transition: background 0.3s; }
+        #map { height: 100vh; width: 100vw; filter: brightness(0.4) contrast(1.1); z-index: 1; }
+        .pcc-panel { position: absolute; top: 20px; left: 20px; z-index: 1000; width: 350px; background: rgba(10, 10, 10, 0.9); backdrop-filter: blur(10px); border-left: 4px solid var(--iris-blue); padding: 20px; }
+        .bus-hex { width: 22px; height: 14px; clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); border: 1px solid white; transition: all 0.3s; }
+        @keyframes panic { 0% { background: #050505; } 50% { background: #440000; } 100% { background: #050505; } }
     </style>
 </head>
 <body>
-    <div class="sidebar glass-panel p-4">
-        <h1 class="text-xl font-bold border-b border-cyan-900 pb-2 mb-4">IRIS HUB 58</h1>
-        <div id="fleet-status" class="space-y-4">
-            <h2 class="text-[10px] text-zinc-500 uppercase tracking-widest">État de la Flotte</h2>
-            <div id="bus-list" class="text-[11px] space-y-2"></div>
+    <div class="pcc-panel shadow-2xl">
+        <h1 class="text-xl font-bold text-white mb-1 tracking-tighter">HUB GLOBAL IRIS 58</h1>
+        <div id="bus-count" class="text-[9px] text-zinc-500 mb-4 uppercase tracking-[2px]">Système Prêt</div>
+        
+        <div id="console" class="text-[9px] text-cyan-500 h-48 overflow-y-auto bg-black/80 p-3 border border-zinc-800 font-mono flex flex-col-reverse">
+            <div class="text-zinc-600">> Initialisation des protocoles...</div>
         </div>
-        <div id="console" class="mt-auto h-32 bg-black/50 text-[9px] p-2 font-mono text-cyan-400 overflow-y-auto"></div>
-    </div>
-
-    <div class="kpi-panel glass-panel p-4">
-        <h2 class="text-xs font-bold mb-3 uppercase border-b border-zinc-800 pb-2 text-center">Audit Contrat IDFM</h2>
-        <div class="grid grid-cols-2 gap-2 text-center">
-            <div class="bg-zinc-900 p-2"><div class="text-[8px] text-zinc-500">KM RÉELS</div><div id="km-reel" class="text-cyan-400 font-bold">0.0</div></div>
-            <div class="bg-zinc-900 p-2"><div class="text-[8px] text-zinc-500">KM PERDUS</div><div id="km-perdu" class="text-red-500 font-bold">0.0</div></div>
-        </div>
+        
+        <button onclick="stopSOS()" class="mt-4 w-full bg-red-900/20 border border-red-500/50 py-2 text-[9px] text-red-400 font-bold hover:bg-red-500 hover:text-white transition-all">ACQUITTER SOS</button>
     </div>
 
     <div id="map"></div>
@@ -43,44 +36,66 @@
         const PCC_ID = 'IRIS-PCC-58-GLOBAL';
 
         function init() {
-            map = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.838, 2.318], 13);
+            map = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.840, 2.318], 14);
             L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
             const peer = new Peer(PCC_ID);
+            
+            peer.on('open', (id) => log(`PCC CONNECTÉ : ${id}`, "text-green-400"));
+
             peer.on('connection', (conn) => {
+                log(`LIAISON ÉTABLIE : ${conn.peer}`, "text-white");
+                
                 conn.on('data', (data) => {
                     if (data.type === 'position') {
                         fleet[data.id] = { ...data, lastUpdate: Date.now(), connection: conn };
-                        updateUI(data);
-                        calculerEtDiffuserIntervalles();
+                        updateBusOnMap(data);
+                        diffuserIntervalles();
+                        document.getElementById('bus-count').innerText = `${Object.keys(fleet).length} UNITÉS EN LIGNE`;
+                    }
+                    if (data.type === 'SOS') {
+                        declencherSOS(data.id);
                     }
                 });
             });
         }
 
-        function calculerEtDiffuserIntervalles() {
+        function updateBusOnMap(d) {
+            const color = d.status ? '#ffae00' : '#00f2ff';
+            if (!fleet[d.id].marker) {
+                fleet[d.id].marker = L.marker([d.lat, d.lon], { 
+                    icon: L.divIcon({ className: '', html: `<div class="bus-hex shadow-lg" style="background:${color}"></div>` }) 
+                }).addTo(map).bindTooltip(d.id, {permanent: true, direction: 'right', className: 'bg-transparent border-0 text-white font-bold text-[10px]'});
+            } else {
+                fleet[d.id].marker.setLatLng([d.lat, d.lon]);
+                fleet[d.id].marker.setIcon(L.divIcon({ className: '', html: `<div class="bus-hex" style="background:${color}"></div>` }));
+            }
+        }
+
+        function diffuserIntervalles() {
             const busArray = Object.values(fleet).sort((a, b) => b.lat - a.lat);
             busArray.forEach((bus, i) => {
                 let prev = "--", next = "--";
                 if (i > 0) prev = Math.round(map.distance([bus.lat, bus.lon], [busArray[i-1].lat, busArray[i-1].lon]) / 250);
                 if (i < busArray.length - 1) next = Math.round(map.distance([bus.lat, bus.lon], [busArray[i+1].lat, busArray[i+1].lon]) / 250);
-                
-                if (bus.connection.open) {
-                    bus.connection.send({ type: 'intervals', prev, next });
-                }
+                if (bus.connection && bus.connection.open) bus.connection.send({ type: 'intervals', prev, next });
             });
         }
 
-        function updateUI(d) {
-            const color = d.status ? '#ffae00' : '#00f2ff';
-            if (!fleet[d.id].marker) {
-                fleet[d.id].marker = L.marker([d.lat, d.lon], { 
-                    icon: L.divIcon({ className: '', html: `<div class="bus-hex" style="background:${color}"></div>` }) 
-                }).addTo(map).bindTooltip(d.id, {permanent: true, direction: 'right', className: 'bg-transparent border-0 text-white text-[8px]'});
-            } else {
-                fleet[d.id].marker.setLatLng([d.lat, d.lon]);
-                fleet[d.id].marker.setIcon(L.divIcon({ className: '', html: `<div class="bus-hex" style="background:${color}"></div>` }));
-            }
+        function declencherSOS(id) {
+            document.body.style.animation = "panic 0.5s infinite";
+            log(`🚨 ALERTE SOS : UNITÉ ${id} !`, "text-red-500 font-bold");
+        }
+
+        function stopSOS() {
+            document.body.style.animation = "none";
+            document.body.style.background = "#050505";
+        }
+
+        function log(m, colorClass = "text-cyan-500") {
+            const c = document.getElementById('console');
+            c.innerHTML += `<div class="${colorClass}">> ${m}</div>`;
+            c.scrollTop = c.scrollHeight;
         }
 
         window.onload = init;

@@ -2,76 +2,32 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IRIS 58 - HUB CENTRAL</title>
+    <title>IRIS 58 - HUB</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
-    <style>
-        body { 
-            background: #000; 
-            font-family: 'Orbitron', sans-serif; 
-            color: white; 
-            height: 100vh; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            overflow: hidden; 
-            margin: 0;
-        }
-        .iris-card { 
-            background: #0a0a0a; 
-            border: 1px solid #1a1a1a; 
-            transition: all 0.3s ease; 
-            position: relative;
-            overflow: hidden;
-        }
-        .iris-card:hover { 
-            border-color: #00f2ff; 
-            box-shadow: 0 0 30px rgba(0, 242, 255, 0.15); 
-        }
-        .iris-card::before {
-            content: "";
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 2px;
-            background: linear-gradient(90deg, transparent, #00f2ff, transparent);
-            animation: scan 3s linear infinite;
-        }
-        @keyframes scan { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
-        
-        input { 
-            background: #111; 
-            border: 1px solid #222; 
-            color: #00f2ff; 
-            padding: 14px; 
-            border-radius: 8px; 
-            width: 100%; 
-            font-size: 14px; 
-            outline: none; 
-            transition: all 0.3s; 
-            font-family: 'Orbitron', sans-serif;
-        }
-        input:focus { border-color: #00f2ff; background: #161616; }
-        
-        .btn-iris { 
-            font-size: 10px; 
-            font-weight: bold; 
-            letter-spacing: 2px; 
-            text-transform: uppercase; 
-            transition: all 0.2s; 
-            cursor: pointer;
-        }
-        .btn-driver { background: rgba(0, 242, 255, 0.1); border: 1px solid #00f2ff; color: #00f2ff; }
-        .btn-driver:hover { background: #00f2ff; color: #000; }
-        .btn-pcc { background: #1a1a1a; border: 1px solid #333; color: #fff; }
-        .btn-pcc:hover { background: #fff; color: #000; }
-    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap" rel="stylesheet">
 </head>
-<body>
-
-    <div class="max-w-4xl w-full px-6 text-center">
-        <header class="mb-16">
-            <h1 class="text-5xl font-bold tracking-[15px] mb-4">IRIS <span class="text-cyan-400">58</span></h1>
-            <p class="text-[10px] text-zinc-500 uppercase tracking-[6px] animate-pulse">Système de Régulation IA & SAEIV</p>
-        </header>
-
-        <div class="grid md:grid-cols-2 gap-10 text-left">
+<body class="bg-zinc-950 text-white flex items-center justify-center h-screen">
+    <div class="p-10 bg-zinc-900 border border-zinc-800 rounded-[40px] shadow-2xl w-96">
+        <h1 class="text-3xl font-black orbitron text-center mb-10 tracking-widest text-cyan-400">IRIS 58</h1>
+        <div class="space-y-6">
+            <div>
+                <label class="text-[10px] uppercase font-bold text-zinc-500 ml-2">Numéro de Service</label>
+                <input type="number" id="svc" placeholder="05801" class="w-full p-4 bg-black border border-zinc-700 rounded-2xl text-white outline-none focus:border-cyan-500 transition-all">
+            </div>
+            <div>
+                <label class="text-[10px] uppercase font-bold text-zinc-500 ml-2">Numéro de Police</label>
+                <input type="number" id="pol" placeholder="8520" class="w-full p-4 bg-black border border-zinc-700 rounded-2xl text-white outline-none focus:border-cyan-500 transition-all">
+            </div>
+            <button onclick="go()" class="w-full py-5 bg-cyan-500 text-black font-black orbitron rounded-2xl hover:bg-white transition-all shadow-lg shadow-cyan-500/20">LANCER SAEIV</button>
+        </div>
+    </div>
+    <script>
+        function go() {
+            const s = document.getElementById('svc').value;
+            const p = document.getElementById('pol').value;
+            if(!s || !p) return alert("Saisie incomplète");
+            window.location.href = `chauffeur_saeiv_58.html?service=${s}&police=${p}`;
+        }
+    </script>
+</body>
+</html>

@@ -2,81 +2,77 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>IRIS 58 - PCC REGULATION</title>
+    <title>IRIS 58 - PCC NIGHT CONTROL</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        body { margin: 0; background: #f4f4f7; display: flex; height: 100vh; font-family: sans-serif; }
-        #map { flex-grow: 1; height: 100%; }
-        .sidebar { width: 350px; background: white; border-left: 1px solid #ddd; display: flex; flex-col; padding: 20px; overflow-y: auto; }
-        .stop-item { font-size: 10px; padding: 4px 0; border-bottom: 1px solid #f0f0f0; color: #666; }
-        .stop-active { color: #2563eb; font-weight: bold; }
+        body { background: #020617; color: white; display: flex; height: 100vh; font-family: sans-serif; }
+        #map { flex-grow: 1; border-right: 1px solid #1e293b; }
+        .sidebar { width: 380px; background: #0f172a; padding: 25px; display: flex; flex-direction: column; }
+        .stop-list { flex-grow: 1; overflow-y: auto; margin-top: 20px; font-size: 11px; }
+        .stop-row { padding: 6px; border-bottom: 1px solid #1e293b; display: flex; justify-content: space-between; color: #64748b; }
+        .bus-marker { width: 14px; height: 14px; background: #00f2ff; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 10px #00f2ff; }
     </style>
 </head>
 <body>
     <div id="map"></div>
-    
     <div class="sidebar">
-        <h2 class="font-black text-blue-600 mb-4 uppercase tracking-tighter">Flux Ligne 58</h2>
-        <div id="bus-list" class="mb-6 space-y-2"></div>
+        <h1 class="text-2xl font-black text-cyan-400 italic">IRIS 58 PCC</h1>
+        <div id="stats" class="text-[10px] text-slate-500 mt-2 uppercase tracking-widest font-bold">Système Actif | Bus en ligne : <span id="bus-count" class="text-white">0</span></div>
         
-        <hr class="mb-4">
-        <h3 class="text-[10px] font-bold text-zinc-400 uppercase mb-2">Points de passage théoriques</h3>
-        <div id="stops-container"></div>
+        <div class="stop-list" id="stops-container">
+            </div>
     </div>
 
     <script>
-        const PARCOURS = ["Vanves - Lycée Michelet", "Carrefour Albert Legris", "Jean Jaurès - Jean Bleuzen", "Adolphe Pinard", "Pont de la Vallée", "Porte de Vanves", "Colonel Monteil", "Didot", "Hôpitaux Broussais Et Saint-Joseph", "Alésia - Didot", "Pernety", "Château", "Losserand - Maine", "Gaîté", "Gare Montparnasse", "Vavin", "Raspail - Fleurus", "Musée du Luxembourg", "Sénat", "Saint-Germain - Odéon", "Châtelet"];
-        
+        const STOPS = ["Vanves-Michelet", "Carrefour Legris", "Jaurès-Bleuzen", "Porte de Vanves", "Didot", "Alésia", "Gare Montparnasse", "Vavin", "Sénat", "Odéon", "Châtelet"];
         let map, fleet = {};
 
         function init() {
-            map = L.map('map').setView([48.830, 2.310], 14);
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
-            
+            map = L.map('map', {attributionControl:false}).setView([48.840, 2.320], 14);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+
+            STOPS.forEach(s => {
+                const row = document.createElement('div');
+                row.className = "stop-row";
+                row.innerHTML = `<span>${s}</span><span class="text-slate-800">--:--</span>`;
+                document.getElementById('stops-container').appendChild(row);
+            });
+
             const peer = new Peer('IRIS-PCC-58-GLOBAL');
             peer.on('connection', (conn) => {
                 conn.on('data', (d) => {
-                    if(d.type === 'position') {
-                        updateBus(d, conn);
-                        verifierRetournement();
-                    }
+                    if(d.type === 'position') updateFleet(d, conn);
                 });
             });
-
-            // Remplissage des arrêts
-            PARCOURS.forEach(s => {
-                const div = document.createElement('div');
-                div.className = "stop-item";
-                div.innerText = "• " + s;
-                document.getElementById('stops-container').appendChild(div);
-            });
         }
 
-        function updateBus(d, conn) {
-            if(!fleet[d.pol]) {
-                fleet[d.pol] = { marker: L.circleMarker([d.lat, d.lon], {radius:10, color:'#2563eb', fillOpacity:1}).addTo(map).bindTooltip("POL "+d.pol, {permanent:true}) };
+        function updateFleet(d, conn) {
+            if(!fleet[d.police]) {
+                fleet[d.police] = {
+                    marker: L.marker([d.lat, d.lon], {icon: L.divIcon({html:'<div class="bus-marker"></div>'})}).addTo(map).bindTooltip("POL "+d.police, {permanent:true, direction:'top'})
+                };
             }
-            fleet[d.pol].marker.setLatLng([d.lat, d.lon]);
-            fleet[d.pol].lat = d.lat;
-            fleet[d.pol].lon = d.lon;
-            fleet[d.pol].conn = conn;
+            fleet[d.police].marker.setLatLng([d.lat, d.lon]);
+            fleet[d.police].lat = d.lat;
+            fleet[d.police].lon = d.lon;
+            fleet[d.police].conn = conn;
+            
+            document.getElementById('bus-count').innerText = Object.keys(fleet).length;
+            detecterRetournement();
         }
 
-        function verifierRetournement() {
-            const buses = Object.values(fleet);
-            if(buses.length < 2) return;
-            
-            // IA : Calcul de distance entre les bus
-            for(let i=0; i<buses.length; i++) {
-                for(let j=i+1; j<buses.length; j++) {
-                    const dist = map.distance([buses[i].lat, buses[i].lon], [buses[j].lat, buses[j].lon]);
-                    // Si moins de 400m = RETOURNEMENT
-                    if(dist < 400) {
-                        buses[i].conn.send({type:'RETOURNEMENT'});
-                        buses[j].conn.send({type:'RETOURNEMENT'});
+        function detecterRetournement() {
+            const keys = Object.keys(fleet);
+            for(let i=0; i<keys.length; i++){
+                for(let j=i+1; j<keys.length; j++){
+                    const b1 = fleet[keys[i]]; const b2 = fleet[keys[j]];
+                    const dist = map.distance([b1.lat, b1.lon], [b2.lat, b2.lon]);
+                    if(dist < 350) { // Si moins de 350m
+                        b1.conn.send({type:'RETOURNEMENT'});
+                        b2.conn.send({type:'RETOURNEMENT'});
                     }
                 }
             }

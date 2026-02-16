@@ -3,72 +3,109 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>IRIS 58 - SAEIV</title>
+    <title>IRIS 58 - TERMINAL NUIT</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Inter:wght@400;900&display=swap" rel="stylesheet">
     <style>
-        body { background: #fff; font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; }
-        #map { height: 100vh; width: 100vw; z-index: 1; }
-        .hud { position: absolute; z-index: 1000; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border-bottom: 2px solid #2563eb; }
+        body { background: #0b0e14; font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; margin: 0; color: white; }
         .orbitron { font-family: 'Orbitron', sans-serif; }
+        
+        /* CARTE NUIT HAUTE VISIBILITÉ (Sans filtre opaque) */
+        #map { height: 100vh; width: 100vw; z-index: 1; }
+        
+        .ui-header { position: absolute; top: 0; left: 0; right: 0; z-index: 1000; background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(12px); border-bottom: 2px solid #00f2ff; padding: 15px; }
+        
+        /* MENU BLEU RESTAURÉ */
+        #sub-menu { position: fixed; bottom: 0; left: 0; right: 0; height: 65%; background: #0f172a; border-top: 4px solid #00f2ff; border-radius: 30px 30px 0 0; transform: translateY(100%); transition: transform 0.4s ease; z-index: 5000; padding: 25px; box-shadow: 0 -10px 40px rgba(0,0,0,0.8); }
+        #sub-menu.open { transform: translateY(0); }
+        
+        .sae-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+        .sae-btn { background: #1e293b; color: white; height: 85px; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 15px; font-weight: 900; font-size: 9px; text-transform: uppercase; border: 1px solid #334155; }
+        .sae-btn span { margin-top: 8px; color: #94a3b8; }
+        
+        .direction-arrow { width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 25px solid #00f2ff; filter: drop-shadow(0 0 8px #00f2ff); }
     </style>
 </head>
 <body>
-    <div class="hud top-0 left-0 right-0 p-4 flex justify-between items-center shadow-lg">
-        <div>
-            <div class="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Prochain Arrêt</div>
-            <div id="stop-name" class="text-xl font-black text-blue-700 uppercase leading-none">Localisation...</div>
+    <div class="ui-header flex justify-between items-center shadow-2xl">
+        <div class="flex items-center gap-4">
+            <div class="bg-cyan-500 text-black px-4 py-1 rounded font-black orbitron text-xl">58</div>
+            <div>
+                <div id="stop-name" class="text-xs text-cyan-400 font-bold uppercase tracking-widest">Initialisation...</div>
+                <div id="info-vacation" class="text-[10px] text-slate-400 font-mono">SVC: -- | POL: --</div>
+            </div>
         </div>
         <div class="text-right">
-            <div id="clock" class="text-lg font-black orbitron">00:00</div>
-            <div id="delay-box" class="text-xs font-bold text-green-600 uppercase">En Ligne</div>
+            <div id="clock" class="text-lg font-black orbitron">00:00:00</div>
+            <div id="delay-display" class="text-xl font-black text-green-400">+00:00</div>
         </div>
     </div>
 
     <div id="map"></div>
 
-    <div id="msg-box" class="fixed inset-0 z-[5000] bg-red-600 hidden flex flex-col items-center justify-center p-10 text-white text-center">
-        <div class="text-6xl mb-6">🔄</div>
-        <h2 class="orbitron text-2xl font-black mb-4">RETOURNEMENT</h2>
-        <p id="msg-text" class="text-xl font-bold uppercase mb-10 italic">Régulation d'intervalle requise</p>
-        <button onclick="ack()" class="w-full py-6 bg-white text-red-600 font-black orbitron text-2xl rounded-3xl shadow-2xl">COMPRIS</button>
+    <button onclick="toggleMenu()" class="fixed bottom-10 left-8 w-20 h-20 rounded-full bg-cyan-600 z-[2000] border-4 border-white shadow-2xl font-black text-[11px] orbitron text-black">MENU</button>
+
+    <div id="sub-menu">
+        <div class="w-16 h-1.5 bg-slate-700 rounded-full mx-auto mb-8"></div>
+        <div class="sae-grid mb-8">
+            <button onclick="sendAlert('Trafic')" class="sae-btn" style="border-color:#fbbf24">🚗<span>Trafic</span></button>
+            <button onclick="sendAlert('Incident')" class="sae-btn">👥<span>Incident</span></button>
+            <button onclick="sendAlert('Déviation')" class="sae-btn">🚧<span>Déviation</span></button>
+            <button onclick="sendAlert('Relève')" class="sae-btn">👤<span>Relève</span></button>
+        </div>
+        <button onclick="envoyerSOS()" class="w-full bg-red-600 py-6 rounded-2xl font-black orbitron text-xl shadow-lg active:scale-95 transition-transform mb-6">🚨 SOS URGENCE</button>
+        <button onclick="toggleMenu()" class="w-full text-slate-500 font-bold uppercase text-xs tracking-widest">Fermer</button>
+    </div>
+
+    <div id="msg-box" class="fixed inset-0 z-[9000] bg-red-700/95 backdrop-blur-xl hidden flex flex-col items-center justify-center p-8 text-center">
+        <div class="text-5xl mb-6">🔄</div>
+        <h2 class="orbitron text-2xl font-black mb-2 uppercase">Alerte Retournement</h2>
+        <p id="msg-text" class="text-lg font-bold mb-10 opacity-80 uppercase italic">Régulation d'intervalle immédiate</p>
+        <button onclick="ackMsg()" class="w-full max-w-sm bg-white text-red-700 py-6 rounded-3xl font-black text-2xl shadow-2xl active:scale-95 transition-transform">COMPRIS</button>
     </div>
 
     <script>
-        const PARCOURS = ["Vanves - Lycée Michelet", "Carrefour Albert Legris", "Jean Jaurès - Jean Bleuzen", "Adolphe Pinard", "Pont de la Vallée", "Porte de Vanves", "Colonel Monteil", "Didot", "Hôpitaux Broussais Et Saint-Joseph", "Alésia - Didot", "Pernety", "Château", "Losserand - Maine", "Gaîté", "Gare Montparnasse", "Montparnasse - Rue du Départ", "Vavin", "Notre-Dame-Des-Champs", "Raspail - Fleurus", "Fleurus", "Musée du Luxembourg", "Sénat", "Théâtre de L'Odéon", "Saint-Germain - Odéon", "Saint-André Des Arts", "Pont Neuf - Q. Grands Augustins", "Châtelet"];
-        
         const params = new URLSearchParams(window.location.search);
-        const POL = params.get('police') || "0000";
-        const AGENT_ID = `BUS-58-P${POL}`;
+        const SVC = params.get('service') || "5800";
+        const POLICE = params.get('police') || "0000";
+        const AGENT_ID = `BUS-58-P${POLICE}`;
+        const PCC_ID = 'IRIS-PCC-58-GLOBAL';
+
         let map, marker, peer, conn;
 
         function init() {
-            map = L.map('map', {zoomControl:false}).setView([48.830, 2.310], 16);
-            // CARTE CLAIRE POUR VISIBILITÉ PLEIN SOLEIL
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
+            document.getElementById('info-vacation').innerText = `SVC: ${SVC} | POL: ${POLICE}`;
             
-            marker = L.marker([0,0], {icon: L.divIcon({html:'<div style="width:24px;height:24px;background:#2563eb;border:4px solid white;border-radius:50%;box-shadow:0 0 10px rgba(0,0,0,0.3);"></div>'})}).addTo(map);
+            // CARTE NUIT HAUTE LISIBILITÉ (CartoDB Dark Matter)
+            map = L.map('map', {zoomControl:false, attributionControl:false}).setView([48.830, 2.310], 16);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+
+            marker = L.marker([0,0], {
+                icon: L.divIcon({className:'', html:'<div class="direction-arrow"></div>', iconSize:[20,25]})
+            }).addTo(map);
 
             if (navigator.geolocation) navigator.geolocation.watchPosition(updateGPS, null, {enableHighAccuracy:true});
-            setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}); }, 1000);
+            setInterval(() => { 
+                document.getElementById('clock').innerText = new Date().toLocaleTimeString('fr-FR');
+            }, 1000);
             
             initPeer();
         }
 
         function updateGPS(pos) {
-            const lat = pos.coords.latitude; const lon = pos.coords.longitude;
-            marker.setLatLng([lat, lon]);
-            map.panTo([lat, lon]);
-            if(conn && conn.open) conn.send({type:'position', pol:POL, lat, lon});
+            const {latitude, longitude} = pos.coords;
+            marker.setLatLng([latitude, longitude]);
+            map.flyTo([latitude, longitude], 17, {animate:true, duration:1});
+            if(conn && conn.open) conn.send({type:'position', police:POLICE, service:SVC, lat:latitude, lon:longitude});
         }
 
         function initPeer() {
             peer = new Peer(AGENT_ID);
             peer.on('open', () => {
-                conn = peer.connect('IRIS-PCC-58-GLOBAL');
+                conn = peer.connect(PCC_ID);
                 conn.on('data', (d) => {
                     if(d.type === 'RETOURNEMENT') {
                         document.getElementById('msg-box').classList.remove('hidden');
@@ -79,7 +116,11 @@
             peer.on('error', () => setTimeout(initPeer, 3000));
         }
 
-        function ack() { document.getElementById('msg-box').classList.add('hidden'); }
+        function toggleMenu() { document.getElementById('sub-menu').classList.toggle('open'); }
+        function sendAlert(l) { if(conn && conn.open) { conn.send({type:'signalement', police:POLICE, label:l}); toggleMenu(); } }
+        function ackMsg() { document.getElementById('msg-box').classList.add('hidden'); }
+        function envoyerSOS() { if(confirm("SOS ?") && conn) conn.send({type:'SOS', police:POLICE}); }
+
         window.onload = init;
     </script>
 </body>

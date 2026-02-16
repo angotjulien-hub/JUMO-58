@@ -1,83 +1,22 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <title>IRIS 58 - PCC NIGHT CONTROL</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-    <style>
-        body { background: #020617; color: white; display: flex; height: 100vh; font-family: sans-serif; }
-        #map { flex-grow: 1; border-right: 1px solid #1e293b; }
-        .sidebar { width: 380px; background: #0f172a; padding: 25px; display: flex; flex-direction: column; }
-        .stop-list { flex-grow: 1; overflow-y: auto; margin-top: 20px; font-size: 11px; }
-        .stop-row { padding: 6px; border-bottom: 1px solid #1e293b; display: flex; justify-content: space-between; color: #64748b; }
-        .bus-marker { width: 14px; height: 14px; background: #00f2ff; border: 2px solid white; border-radius: 50%; box-shadow: 0 0 10px #00f2ff; }
-    </style>
-</head>
-<body>
-    <div id="map"></div>
-    <div class="sidebar">
-        <h1 class="text-2xl font-black text-cyan-400 italic">IRIS 58 PCC</h1>
-        <div id="stats" class="text-[10px] text-slate-500 mt-2 uppercase tracking-widest font-bold">Système Actif | Bus en ligne : <span id="bus-count" class="text-white">0</span></div>
-        
-        <div class="stop-list" id="stops-container">
-            </div>
-    </div>
+// Bloc à insérer dans le script du PCC pour activer l'IA de Retournement
+function detecterRetournement() {
+    const keys = Object.keys(fleet);
+    if(keys.length < 2) return;
 
-    <script>
-        const STOPS = ["Vanves-Michelet", "Carrefour Legris", "Jaurès-Bleuzen", "Porte de Vanves", "Didot", "Alésia", "Gare Montparnasse", "Vavin", "Sénat", "Odéon", "Châtelet"];
-        let map, fleet = {};
-
-        function init() {
-            map = L.map('map', {attributionControl:false}).setView([48.840, 2.320], 14);
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
-
-            STOPS.forEach(s => {
-                const row = document.createElement('div');
-                row.className = "stop-row";
-                row.innerHTML = `<span>${s}</span><span class="text-slate-800">--:--</span>`;
-                document.getElementById('stops-container').appendChild(row);
-            });
-
-            const peer = new Peer('IRIS-PCC-58-GLOBAL');
-            peer.on('connection', (conn) => {
-                conn.on('data', (d) => {
-                    if(d.type === 'position') updateFleet(d, conn);
-                });
-            });
-        }
-
-        function updateFleet(d, conn) {
-            if(!fleet[d.police]) {
-                fleet[d.police] = {
-                    marker: L.marker([d.lat, d.lon], {icon: L.divIcon({html:'<div class="bus-marker"></div>'})}).addTo(map).bindTooltip("POL "+d.police, {permanent:true, direction:'top'})
-                };
-            }
-            fleet[d.police].marker.setLatLng([d.lat, d.lon]);
-            fleet[d.police].lat = d.lat;
-            fleet[d.police].lon = d.lon;
-            fleet[d.police].conn = conn;
+    for(let i=0; i<keys.length; i++){
+        for(let j=i+1; j<keys.length; j++){
+            const b1 = fleet[keys[i]]; 
+            const b2 = fleet[keys[j]];
             
-            document.getElementById('bus-count').innerText = Object.keys(fleet).length;
-            detecterRetournement();
-        }
-
-        function detecterRetournement() {
-            const keys = Object.keys(fleet);
-            for(let i=0; i<keys.length; i++){
-                for(let j=i+1; j<keys.length; j++){
-                    const b1 = fleet[keys[i]]; const b2 = fleet[keys[j]];
-                    const dist = map.distance([b1.lat, b1.lon], [b2.lat, b2.lon]);
-                    if(dist < 350) { // Si moins de 350m
-                        b1.conn.send({type:'RETOURNEMENT'});
-                        b2.conn.send({type:'RETOURNEMENT'});
-                    }
-                }
+            // Mesure de la distance réelle entre deux points GPS
+            const dist = map.distance([b1.lat, b1.lon], [b2.lat, b2.lon]);
+            
+            // ALGORITHME IRIS : Si distance < 350m (intervalle brisé)
+            if(dist < 350) { 
+                console.log(`IA : Retournement nécessaire entre POL ${keys[i]} et POL ${keys[j]}`);
+                if(b1.conn) b1.conn.send({type:'RETOURNEMENT'});
+                if(b2.conn) b2.conn.send({type:'RETOURNEMENT'});
             }
         }
-        window.onload = init;
-    </script>
-</body>
-</html>
+    }
+}

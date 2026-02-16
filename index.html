@@ -2,24 +2,25 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>IRIS 58 - HUB</title>
+    <title>IRIS 58 - HUB CENTRAL</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap" rel="stylesheet">
 </head>
 <body class="bg-zinc-950 text-white flex items-center justify-center h-screen">
-    <div class="p-10 bg-zinc-900 border border-zinc-800 rounded-[40px] shadow-2xl w-96">
-        <h1 class="text-3xl font-black orbitron text-center mb-10 tracking-widest text-cyan-400">IRIS 58</h1>
+    <div class="p-10 bg-zinc-900 border border-zinc-800 rounded-[40px] shadow-2xl w-96 text-center">
+        <h1 class="text-3xl font-black orbitron mb-2 tracking-widest text-cyan-400">IRIS 58</h1>
+        <p class="text-[10px] text-zinc-500 uppercase font-bold mb-10 tracking-tighter">Système de Régulation IA & SAEIV</p>
         <div class="space-y-6">
-            <input type="number" id="svc" placeholder="N° SERVICE" class="w-full p-4 bg-black border border-zinc-700 rounded-2xl text-white outline-none focus:border-cyan-500">
-            <input type="number" id="pol" placeholder="N° POLICE" class="w-full p-4 bg-black border border-zinc-700 rounded-2xl text-white outline-none focus:border-cyan-500">
-            <button onclick="go()" class="w-full py-5 bg-cyan-500 text-black font-black orbitron rounded-2xl shadow-lg">LANCER SAEIV</button>
+            <input type="number" id="svc" placeholder="N° SERVICE (ex: 05801)" class="w-full p-4 bg-black border border-zinc-700 rounded-2xl text-white outline-none focus:border-cyan-500 transition-all">
+            <input type="number" id="pol" placeholder="N° POLICE (ex: 8520)" class="w-full p-4 bg-black border border-zinc-700 rounded-2xl text-white outline-none focus:border-cyan-500 transition-all">
+            <button onclick="go()" class="w-full py-5 bg-cyan-500 text-black font-black orbitron rounded-2xl hover:bg-white transition-all shadow-lg shadow-cyan-500/20">DÉMARRER LA VACATION</button>
         </div>
     </div>
     <script>
         function go() {
             const s = document.getElementById('svc').value;
             const p = document.getElementById('pol').value;
-            if(!s || !p) return alert("Saisie incomplète");
+            if(!s || !p) return alert("Identifiants manquants");
             window.location.href = `chauffeur_saeiv_58.html?service=${s}&police=${p}`;
         }
     </script>

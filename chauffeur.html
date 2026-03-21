@@ -5,135 +5,151 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>IRIS v5.0 - Ligne 58</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Inter:wght@400;900&display=swap" rel="stylesheet">
     <style>
-        body { background: #000; color: white; font-family: 'Inter', sans-serif; overflow: hidden; transition: all 0.5s ease; }
+        body { background: #000; color: white; font-family: 'Inter', sans-serif; overflow: hidden; margin: 0; }
         .ui-card { background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 20px; }
-        
-        /* Styles Dynamiques */
+        .orbitron { font-family: 'Orbitron', sans-serif; }
         .mission-ctl { border-top: 6px solid #22d3ee; box-shadow: 0 -10px 30px rgba(34, 211, 238, 0.1); }
         .mission-van { border-top: 6px solid #fbbf24; box-shadow: 0 -10px 30px rgba(251, 191, 36, 0.1); }
-        
-        #display-station { cursor: pointer; user-select: none; }
-        #map { height: 180px; width: 100%; border-radius: 15px; z-index: 1; filter: grayscale(1) invert(1) contrast(1.2); }
+        #map { height: 180px; width: 100%; border-radius: 15px; z-index: 1; filter: grayscale(1) invert(0.9) contrast(1.2); }
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 9999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(10px); }
+        .hidden { display: none; }
     </style>
 </head>
 <body class="h-screen flex flex-col p-4">
 
     <header class="flex justify-between items-center mb-4">
         <div class="flex items-center gap-3">
-            <div id="line-badge" class="bg-[#FFD700] text-black px-4 py-1 text-3xl font-black rounded-lg">58</div>
+            <div class="bg-[#FFD700] text-black px-4 py-1 text-3xl font-black rounded-lg orbitron">58</div>
             <div>
-                <p class="text-[10px] text-zinc-500 uppercase font-bold tracking-widest">Direction actuelle</p>
-                <p id="mission-label" class="text-cyan-400 font-black uppercase text-xl tracking-tighter">VERS CHÂTELET</p>
+                <p class="text-[10px] text-zinc-500 uppercase font-bold tracking-widest">Direction</p>
+                <p id="mission-label" class="text-cyan-400 font-black uppercase text-xl tracking-tighter italic">VERS CHÂTELET</p>
             </div>
         </div>
-        <button onclick="basculerMission()" class="bg-zinc-900 border border-zinc-700 px-6 py-3 rounded-xl text-xs font-black uppercase active:scale-95 transition-all">
-            🔄 Inverser
-        </button>
+        <div class="flex gap-2">
+             <div id="sync-status" class="bg-zinc-900 border border-zinc-700 px-3 py-3 rounded-xl text-[9px] font-black uppercase text-zinc-500">OFFLINE</div>
+             <button onclick="basculerMission()" class="bg-zinc-900 border border-zinc-700 px-6 py-3 rounded-xl text-xs font-black uppercase active:scale-95 transition-all">🔄 Inverser</button>
+        </div>
     </header>
 
-    <main id="main-card" class="ui-card p-6 mb-4 flex flex-col items-center justify-center mission-ctl">
-        <span class="text-zinc-600 text-[10px] uppercase tracking-[0.4em] mb-4">Prochain Arrêt</span>
-        <h1 id="display-station" class="text-5xl font-black text-center uppercase tracking-tighter leading-none min-h-[120px] flex items-center italic">
+    <main id="main-card" class="ui-card p-6 mb-4 flex flex-col items-center justify-center mission-ctl flex-1">
+        <span class="text-zinc-600 text-[10px] uppercase tracking-[0.4em] mb-4 font-bold">Prochain Arrêt</span>
+        <h1 id="display-station" class="text-4xl font-black text-center uppercase tracking-tighter leading-tight min-h-[120px] flex items-center italic cursor-pointer select-none">
             CHARGEMENT...
         </h1>
     </main>
 
     <div class="grid grid-cols-3 gap-4 mb-4">
-        <div class="col-span-2 ui-card p-2">
-            <div id="map"></div>
-        </div>
-        <div class="flex flex-col gap-4">
+        <div class="col-span-2 ui-card p-2"><div id="map"></div></div>
+        <div class="flex flex-col gap-3">
             <div class="ui-card flex-1 flex flex-col items-center justify-center p-2">
                 <span class="text-zinc-600 text-[8px] uppercase font-bold italic">Vitesse</span>
-                <div id="speed" class="text-4xl font-black italic">00</div>
+                <div id="speed" class="text-4xl font-black italic orbitron">00</div>
                 <span class="text-[8px] text-zinc-700 font-bold tracking-widest">KM/H</span>
             </div>
             <div class="ui-card flex-1 flex flex-col items-center justify-center p-2">
-                <span class="text-zinc-600 text-[8px] uppercase font-bold italic">Signal</span>
-                <div id="gps-status" class="w-4 h-4 rounded-full bg-red-600 animate-pulse"></div>
+                <div id="gps-status" class="w-4 h-4 rounded-full bg-red-600"></div>
+                <span class="text-[8px] text-zinc-700 font-bold mt-1">GPS</span>
             </div>
         </div>
     </div>
 
+    <div id="iris-modal" class="modal hidden">
+        <div class="bg-zinc-900 border-t-4 border-red-500 p-8 rounded-[40px] text-center max-w-sm mx-4">
+            <div class="text-red-500 font-black orbitron text-xs mb-4">⚠️ RÉGULATION IRIS</div>
+            <h2 class="text-3xl font-black mb-2 italic">RETOURNEMENT</h2>
+            <p class="text-zinc-400 text-sm mb-6">Ordre : Limitation à <strong class="text-white">ALÉSIA</strong>.</p>
+            <button onclick="ack()" class="w-full bg-red-600 py-5 rounded-2xl font-black text-xl uppercase">Acquitter</button>
+        </div>
+    </div>
+
     <script>
+        const params = new URLSearchParams(window.location.search);
+        const POL = params.get('police') || "0000";
+
         const DATA = {
             "V_CTL": [
-                { name: "Vanves-Lycée Michelet" }, { name: "Carrefour Albert Legris" }, { name: "Jean Jaurès-Jean Bleuzen" },
-                { name: "Adolphe Pinard" }, { name: "Pont de la Vallée" }, { name: "Porte de Vanves" },
-                { name: "Colonel Monteil" }, { name: "Didot" }, { name: "Hôpitaux Broussais et St-Joseph" },
-                { name: "Didot-Alésia" }, { name: "Pernety" }, { name: "Château-Mairie du 14ème" },
-                { name: "Losserand-Maine" }, { name: "Gaîté" }, { name: "Gare Montparnasse" },
-                { name: "18 Juin" }, { name: "Rue du Départ" }, { name: "Vavin" },
-                { name: "Guynemer-Raspail" }, { name: "Fleurus" }, { name: "Musée du Luxembourg" },
-                { name: "Sénat" }, { name: "Théâtre de l'Odéon" }, { name: "Saint-Germain-Odéon" },
-                { name: "Saint-André des Arts" }, { name: "Quai des Grands Augustins" },
-                { name: "Pont Neuf-Q. Grands Augustins" }, { name: "Châtelet-Quai de Gevres" }, { name: "Châtelet" }
+                {name: "Vanves-Lycée Michelet"}, {name: "Carrefour Albert Legris"}, {name: "Jean Jaurès-Jean Bleuzen"},
+                {name: "Adolphe Pinard"}, {name: "Pont de la Vallée"}, {name: "Porte de Vanves"},
+                {name: "Colonel Monteil"}, {name: "Didot"}, {name: "Hôpitaux Broussais et St-Joseph"},
+                {name: "Didot-Alésia"}, {name: "Pernety"}, {name: "Château-Mairie du 14ème"},
+                {name: "Losserand-Maine"}, {name: "Gaîté"}, {name: "Gare Montparnasse"},
+                {name: "18 Juin 1940"}, {name: "Vavin"}, {name: "Guynemer-Vavin"}, {name: "Fleurus"},
+                {name: "Musée du Luxembourg"}, {name: "Sénat"}, {name: "Théâtre de l'Odéon"},
+                {name: "Saint-Germain-Odéon"}, {name: "Saint-André des Arts"}, {name: "Pont Neuf-Quai des Grands Augustins"},
+                {name: "Châtelet-Quai de Gesvres"}, {name: "Châtelet"}
             ],
             "V_VAN": [
-                { name: "Châtelet" }, { name: "Cité-Palais de Justice" }, { name: "Saint-Michel" },
-                { name: "Guénégaud" }, { name: "Mazarine" }, { name: "Saint-Germain-Odéon" },
-                { name: "Sénat" }, { name: "Musée du Luxembourg" }, { name: "Guynemer-Vavin" },
-                { name: "Bréa-Notre-Dame des Champs" }, { name: "Vavin" }, { name: "Montparnasse-Cinémas" },
-                { name: "18 Juin" }, { name: "Rue du Départ" }, { name: "Gare Montparnasse" },
-                { name: "Gaîté" }, { name: "Losserand-Maine" }, { name: "Château-Mairie du 14ème" },
-                { name: "Rue Bénard" }, { name: "Alésia-Les Plantes" }, { name: "Hôpital N-D de Bon Secours" },
-                { name: "Jean Moulin" }, { name: "Porte de Châtillon" }, { name: "Porte Didot-Lycée Raspail" },
-                { name: "Porte de Vanves" }, { name: "Pont de la Vallée" }, { name: "Jean Jaurès-Jean Bleuzen" },
-                { name: "Carrefour Albert Legris" }, { name: "Vanves-Lycée Michelet" }
+                {name: "Châtelet"}, {name: "Cité-Palais de Justice"}, {name: "Saint-Michel"},
+                {name: "Guénégaud"}, {name: "Mazarine"}, {name: "Saint-Germain-Odéon"},
+                {name: "Sénat"}, {name: "Musée du Luxembourg"}, {name: "Guynemer-Vavin"},
+                {name: "Bréa-Notre-Dame des Champs"}, {name: "Vavin"}, {name: "Montparnasse-Cinémas"},
+                {name: "Gare Montparnasse"}, {name: "Gaîté"}, {name: "Losserand-Maine"},
+                {name: "Château-Mairie du 14ème"}, {name: "Rue Bénard"}, {name: "Alésia-Les Plantes"},
+                {name: "Hôpital N-D de Bon Secours"}, {name: "Jean Moulin"}, {name: "Porte de Châtillon"},
+                {name: "Porte Didot-Lycée Raspail"}, {name: "Porte de Vanves"}, {name: "Pont de la Vallée"},
+                {name: "Jean Jaurès-Jean Bleuzen"}, {name: "Carrefour Albert Legris"}, {name: "Vanves-Lycée Michelet"}
             ]
         };
 
         let currentMission = "V_CTL";
         let currentIndex = 0;
+        let peer, conn;
+
+        function initPeer() {
+            peer = new Peer(`BUS-58-P${POL}`);
+            peer.on('open', () => {
+                document.getElementById('sync-status').innerText = "LIVE SYNC";
+                document.getElementById('sync-status').classList.replace('text-zinc-500', 'text-cyan-400');
+                conn = peer.connect('IRIS-PCC-58-GLOBAL');
+                conn.on('data', d => { if(d.type === 'RETOURNEMENT') document.getElementById('iris-modal').classList.remove('hidden'); });
+            });
+        }
 
         function basculerMission() {
             currentMission = (currentMission === "V_CTL") ? "V_VAN" : "V_CTL";
             currentIndex = 0;
-            
             const label = document.getElementById('mission-label');
             const card = document.getElementById('main-card');
-            
             if(currentMission === "V_CTL") {
-                label.innerText = "VERS CHÂTELET";
-                label.className = "text-cyan-400 font-black uppercase text-xl tracking-tighter";
-                card.className = "ui-card p-6 mb-4 flex flex-col items-center justify-center mission-ctl";
+                label.innerText = "VERS CHÂTELET"; label.className = "text-cyan-400 font-black uppercase text-xl italic";
+                card.className = "ui-card p-6 mb-4 flex flex-col items-center justify-center mission-ctl flex-1";
             } else {
-                label.innerText = "VERS VANVES";
-                label.className = "text-yellow-400 font-black uppercase text-xl tracking-tighter";
-                card.className = "ui-card p-6 mb-4 flex flex-col items-center justify-center mission-van";
+                label.innerText = "VERS VANVES"; label.className = "text-yellow-400 font-black uppercase text-xl italic";
+                card.className = "ui-card p-6 mb-4 flex flex-col items-center justify-center mission-van flex-1";
             }
             updateDisplay();
         }
 
         function updateDisplay() {
-            const stations = DATA[currentMission];
-            document.getElementById('display-station').innerText = stations[currentIndex].name;
+            document.getElementById('display-station').innerText = DATA[currentMission][currentIndex].name;
         }
 
-        // Click sur le nom pour avancer manuellement
-        document.getElementById('display-station').onclick = function() {
+        document.getElementById('display-station').onclick = () => {
             currentIndex = (currentIndex + 1) % DATA[currentMission].length;
             updateDisplay();
         };
 
-        function init() {
-            const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.8566, 2.3522], 14);
+        function ack() { document.getElementById('iris-modal').classList.add('hidden'); }
+
+        window.onload = () => {
+            const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.835, 2.320], 14);
             L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
             updateDisplay();
-            
+            initPeer();
             if ("geolocation" in navigator) {
                 navigator.geolocation.watchPosition((pos) => {
                     const speed = Math.round((pos.coords.speed || 0) * 3.6);
                     document.getElementById('speed').innerText = speed.toString().padStart(2, '0');
                     document.getElementById('gps-status').className = "w-4 h-4 rounded-full bg-green-500 shadow-[0_0_15px_green]";
+                    if(conn && conn.open) conn.send({type:'pos', lat:pos.coords.latitude, lon:pos.coords.longitude, pol:POL});
                 }, null, { enableHighAccuracy: true });
             }
-        }
-
-        window.onload = init;
+        };
     </script>
 </body>
 </html>

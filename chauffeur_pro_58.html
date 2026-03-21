@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>IRIS PRO v5.2 - Ligne 58</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;900&family=Inter:wght@300;400;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root { --accent: #22d3ee; --bg: #050505; }
+        body { background: var(--bg); color: white; font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; margin: 0; }
+        .orbitron { font-family: 'Orbitron', sans-serif; }
+        
+        /* Glassmorphism UI */
+        .glass { background: rgba(20, 20, 20, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.05); }
+        .btn-active { active:scale-95; transition: transform 0.1s; }
+        
+        /* Map Customization */
+        #map { height: 100%; width: 100%; filter: grayscale(1) invert(0.9) contrast(1.1); position: absolute; top: 0; left: 0; z-index: 0; }
+        
+        /* Overlay Gradient pour lisibilité */
+        .overlay-top { background: linear-gradient(to bottom, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0) 100%); z-index: 10; }
+        .overlay-bottom { background: linear-gradient(to top, rgba(0,0,0,1) 30%, rgba(0,0,0,0) 100%); z-index: 10; }
+
+        /* Animation Alertes */
+        @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); } 70% { box-shadow: 0 0 0 20px rgba(220, 38, 38, 0); } 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); } }
+        .alert-active { animation: pulse-red 2s infinite; border: 2px solid #dc2626 !important; }
+    </style>
+</head>
+<body class="relative flex flex-col">
+
+    <div id="map"></div>
+
+    <header class="overlay-top p-6 flex justify-between items-start pointer-events-none">
+        <div class="flex gap-4 pointer-events-auto">
+            <div class="bg-[#FFD700] text-black px-5 py-2 text-4xl font-black rounded-2xl orbitron shadow-2xl">58</div>
+            <div class="flex flex-col">
+                <span class="text-[10px] text-zinc-400 font-bold tracking-[0.3em] uppercase">Destination</span>
+                <span id="target-label" class="text-2xl font-black italic tracking-tighter text-white">CHÂTELET</span>
+            </div>
+        </div>
+        <div class="flex flex-col items-end pointer-events-auto">
+            <div id="conn-tag" class="flex items-center gap-2 bg-black/50 border border-white/10 px-3 py-1 rounded-full mb-2">
+                <div id="conn-dot" class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
+                <span class="text-[9px] font-bold tracking-widest uppercase text-zinc-300">IRIS OFFLINE</span>
+            </div>
+            <button onclick="basculerMission()" class="glass p-4 rounded-2xl btn-active border border-white/20">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="text-white"><path d="m7 21-4-4 4-4"/><path d="M3 17h18"/><path d="m17 3 4 4-4 4"/><path d="M21 7H3"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <div class="flex-1"></div>
+
+    <footer class="overlay-bottom p-6 pt-20">
+        <div class="w-full h-1 bg-white/10 rounded-full mb-8 relative overflow-hidden">
+            <div id="line-progress" class="absolute top-0 left-0 h-full bg-cyan-400 transition-all duration-1000" style="width: 0%"></div>
+        </div>
+
+        <div class="flex items-end justify-between gap-4">
+            <div class="glass flex-1 p-6 rounded-[32px] border-l-4 border-cyan-400 relative overflow-hidden group btn-active" onclick="nextStation()">
+                <div class="absolute top-4 right-6 text-[10px] font-black text-cyan-400 uppercase tracking-widest opacity-50">Prochain Arrêt</div>
+                <h2 id="current-station" class="text-3xl font-black italic uppercase leading-none mt-2 tracking-tighter">Chargement...</h2>
+                <p id="next-station-label" class="text-zinc-500 text-xs font-bold mt-2 uppercase">Suivant: <span class="text-zinc-300">Calcul...</span></p>
+            </div>
+
+            <div class="flex flex-col gap-3">
+                <div class="glass p-4 rounded-3xl flex flex-col items-center justify-center min-w-[100px]">
+                    <span class="text-[10px] font-bold text-zinc-500 uppercase italic">Vitesse</span>
+                    <span id="speed" class="text-4xl font-black orbitron">00</span>
+                </div>
+                <div class="glass p-4 rounded-3xl flex flex-col items-center justify-center border-b-4 border-green-500">
+                    <span class="text-[10px] font-bold text-zinc-500 uppercase">EID</span>
+                    <span class="text-xl font-black text-green-500 orbitron">+01'</span>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <div id="modal-pcc" class="fixed inset-0 z-[100] bg-black/90 backdrop-blur-2xl flex items-center justify-center p-8 hidden">
+        <div id="modal-container" class="glass w-full max-w-lg p-10 rounded-[40px] text-center border-t-8 border-cyan-500">
+            <div class="flex justify-center mb-6">
+                <div class="p-4 bg-cyan-500/20 rounded-full">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                </div>
+            </div>
+            <h3 class="text-zinc-500 font-bold uppercase tracking-[0.3em] text-xs mb-2">Message Prioritaire</h3>
+            <div id="pcc-text" class="text-3xl font-black text-white italic uppercase mb-10 leading-tight">ORDRE DE RÉGULATION</div>
+            <button onclick="closeModal()" class="w-full bg-white text-black py-6 rounded-3xl font-black text-xl uppercase tracking-widest active:scale-95 transition-all">Acquitter</button>
+        </div>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const POL = params.get('police') || "0000";
+        let currentIndex = 0, currentMission = "V_CTL", peer, conn, map, userMarker;
+
+        const DATA = {
+            "V_CTL": ["Vanves-Michelet", "Porte de Vanves", "Didot", "Alésia", "Pernety", "Gaîté", "Gare Montparnasse", "Vavin", "Sénat", "Odéon", "Châtelet"],
+            "V_VAN": ["Châtelet", "Saint-Michel", "Sénat", "Vavin", "Gare Montparnasse", "Gaîté", "Alésia", "Porte de Vanves", "Vanves-Michelet"]
+        };
+
+        function initMap() {
+            map = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.83, 2.32], 14);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+            userMarker = L.circleMarker([0,0], {radius: 8, color: '#fff', fillColor: '#22d3ee', fillOpacity: 1, weight: 3}).addTo(map);
+            setTimeout(() => map.invalidateSize(), 500);
+        }
+
+        function initPeer() {
+            peer = new Peer(`BUS-58-P${POL}`);
+            peer.on('open', () => {
+                document.getElementById('conn-dot').classList.replace('bg-red-500', 'bg-cyan-500');
+                document.getElementById('conn-tag').querySelector('span').innerText = "IRIS CONNECTÉ";
+                conn = peer.connect('IRIS-PCC-58-GLOBAL');
+                conn.on('data', handlePCCData);
+            });
+            peer.on('connection', c => { conn = c; conn.on('data', handlePCCData); });
+        }
+
+        function handlePCCData(d) {
+            const modal = document.getElementById('modal-pcc');
+            const container = document.getElementById('modal-container');
+            const text = document.getElementById('pcc-text');
+            
+            if(d.type === 'RETOURNEMENT') {
+                text.innerText = "REBROUSSAGE IMMÉDIAT À ALÉSIA";
+                container.style.borderColor = "#dc2626";
+                modal.classList.remove('hidden');
+            } else if(d.type === 'msg') {
+                text.innerText = d.content;
+                container.style.borderColor = "#22d3ee";
+                modal.classList.remove('hidden');
+            }
+            if(window.navigator.vibrate) window.navigator.vibrate([200, 100, 200]);
+        }
+
+        function basculerMission() {
+            currentMission = (currentMission === "V_CTL") ? "V_VAN" : "V_CTL";
+            currentIndex = 0;
+            document.getElementById('target-label').innerText = (currentMission === "V_CTL") ? "CHÂTELET" : "VANVES";
+            updateDisplay();
+        }
+
+        function nextStation() {
+            if(currentIndex < DATA[currentMission].length - 1) {
+                currentIndex++;
+                updateDisplay();
+            }
+        }
+
+        function updateDisplay() {
+            const stations = DATA[currentMission];
+            document.getElementById('current-station').innerText = stations[currentIndex];
+            const next = stations[currentIndex + 1] || "TERMINUS";
+            document.getElementById('next-station-label').querySelector('span').innerText = next;
+            
+            // Update Progress Bar
+            const prog = (currentIndex / (stations.length - 1)) * 100;
+            document.getElementById('line-progress').style.width = prog + "%";
+        }
+
+        function closeModal() { document.getElementById('modal-pcc').classList.add('hidden'); }
+
+        window.onload = () => {
+            initMap();
+            initPeer();
+            updateDisplay();
+
+            if ("geolocation" in navigator) {
+                navigator.geolocation.watchPosition((pos) => {
+                    const lat = pos.coords.latitude, lon = pos.coords.longitude;
+                    const s = Math.round((pos.coords.speed || 0) * 3.6);
+                    document.getElementById('speed').innerText = s.toString().padStart(2, '0');
+                    userMarker.setLatLng([lat, lon]);
+                    map.panTo([lat, lon]);
+                    if(conn && conn.open) conn.send({type:'pos', lat:lat, lon:lon, pol:POL});
+                }, null, { enableHighAccuracy: true });
+            }
+        };
+    </script>
+</body>
+</html>

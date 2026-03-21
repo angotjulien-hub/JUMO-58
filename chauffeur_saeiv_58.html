@@ -66,4 +66,104 @@
     </div>
 
     <div id="modal-msg" class="modal hidden">
-        <div class="bg-zinc-900 border-t-8 border-cyan-500 p-
+        <div class="bg-zinc-900 border-t-8 border-cyan-500 p-8 rounded-[40px] text-center w-full shadow-2xl">
+            <div class="text-cyan-500 font-black orbitron text-xs mb-4 uppercase">Message du Régulateur</div>
+            <div id="msg-content" class="text-2xl font-black text-white uppercase italic mb-8">...</div>
+            <button onclick="ack('modal-msg')" class="w-full bg-cyan-600 py-6 rounded-3xl font-black text-2xl uppercase">Compris</button>
+        </div>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const POL = params.get('police') || "0000";
+        let currentIndex = 0, currentMission = "V_CTL", peer, conn, map, routeLine, userMarker;
+
+        // Points GPS simplifiés pour le tracé de la ligne 58
+        const ROUTE_POINTS = [
+            [48.819, 2.292], [48.825, 2.299], [48.828, 2.306], [48.831, 2.315],
+            [48.838, 2.324], [48.842, 2.321], [48.849, 2.331], [48.854, 2.338],
+            [48.857, 2.345], [48.858, 2.348]
+        ];
+
+        const DATA = {
+            "V_CTL": [{name: "Vanves-Lycée Michelet"}, {name: "Porte de Vanves"}, {name: "Alésia"}, {name: "Gare Montparnasse"}, {name: "Sénat"}, {name: "Châtelet"}],
+            "V_VAN": [{name: "Châtelet"}, {name: "Saint-Michel"}, {name: "Sénat"}, {name: "Gare Montparnasse"}, {name: "Alésia"}, {name: "Vanves-Lycée Michelet"}]
+        };
+
+        function initMap() {
+            map = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.835, 2.320], 14);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+            
+            userMarker = L.circleMarker([0,0], {radius: 8, color: '#fff', fillColor: '#22d3ee', fillOpacity: 1, weight: 3}).addTo(map);
+            tracerLigne();
+            setTimeout(() => { map.invalidateSize(); }, 500);
+        }
+
+        function tracerLigne() {
+            if(routeLine) map.removeLayer(routeLine);
+            const color = currentMission === "V_CTL" ? "#22d3ee" : "#fbbf24";
+            routeLine = L.polyline(ROUTE_POINTS, {color: color, weight: 5, opacity: 0.6, dashArray: '10, 10'}).addTo(map);
+        }
+
+        function initPeer() {
+            peer = new Peer(`BUS-58-P${POL}`);
+            peer.on('open', () => {
+                const st = document.getElementById('sync-status');
+                st.innerText = "LIVE SYNC"; st.className = "bg-cyan-500/10 border border-cyan-500/50 text-cyan-400 px-3 py-2 rounded-xl text-[9px] font-black";
+                conn = peer.connect('IRIS-PCC-58-GLOBAL');
+                conn.on('data', (d) => {
+                    if(d.type === 'RETOURNEMENT') document.getElementById('modal-retournement').classList.remove('hidden');
+                    if(d.type === 'msg') {
+                        document.getElementById('msg-content').innerText = d.content;
+                        document.getElementById('modal-msg').classList.remove('hidden');
+                    }
+                    if (window.navigator.vibrate) window.navigator.vibrate(200);
+                });
+            });
+        }
+
+        function basculerMission() {
+            currentMission = (currentMission === "V_CTL") ? "V_VAN" : "V_CTL";
+            currentIndex = 0;
+            document.getElementById('mission-label').innerText = currentMission === "V_CTL" ? "VERS CHÂTELET" : "VERS VANVES";
+            document.getElementById('mission-label').className = currentMission === "V_CTL" ? "text-cyan-400 font-black uppercase text-xl italic" : "text-yellow-400 font-black uppercase text-xl italic";
+            document.getElementById('main-card').className = `ui-card p-6 mb-4 flex flex-col items-center justify-center flex-1 ${currentMission === "V_CTL" ? 'mission-ctl' : 'mission-van'}`;
+            tracerLigne();
+            updateDisplay();
+        }
+
+        function updateDisplay() {
+            document.getElementById('display-station').innerText = DATA[currentMission][currentIndex].name;
+        }
+
+        document.getElementById('display-station').onclick = () => {
+            currentIndex = (currentIndex + 1) % DATA[currentMission].length;
+            updateDisplay();
+        };
+
+        function ack(id) { document.getElementById(id).classList.add('hidden'); }
+
+        window.onload = () => {
+            initMap();
+            updateDisplay();
+            initPeer();
+
+            if ("geolocation" in navigator) {
+                navigator.geolocation.watchPosition((pos) => {
+                    const lat = pos.coords.latitude;
+                    const lon = pos.coords.longitude;
+                    const s = Math.round((pos.coords.speed || 0) * 3.6);
+                    
+                    document.getElementById('speed').innerText = s.toString().padStart(2, '0');
+                    document.getElementById('gps-status').className = "w-4 h-4 rounded-full bg-green-500 shadow-[0_0_10px_green]";
+                    
+                    userMarker.setLatLng([lat, lon]);
+                    map.panTo([lat, lon]);
+
+                    if(conn && conn.open) conn.send({type:'pos', lat:lat, lon:lon, pol:POL});
+                }, null, { enableHighAccuracy: true });
+            }
+        };
+    </script>
+</body>
+</html>

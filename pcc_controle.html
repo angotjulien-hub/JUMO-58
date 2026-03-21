@@ -7,15 +7,32 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
     <style>
-        body { background: #020617; color: white; font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; }
-        #map { flex: 1; height: 100%; filter: grayscale(1) invert(0.92) contrast(1.2); }
-        .sidebar { width: 450px; background: #0f172a; border-left: 2px solid #1e293b; display: flex; flex-col; }
+        body { background: #020617; color: white; font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; display: flex; }
+        #map { flex: 1; height: 100%; filter: grayscale(1) invert(0.92) contrast(1.2) brightness(0.9); }
+        .sidebar { width: 450px; background: #050505; border-left: 2px solid #1e293b; display: flex; flex-direction: column; z-index: 1001; }
         .orbitron { font-family: 'Orbitron', sans-serif; }
-        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        .glass { background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); }
+        
+        /* Animation pour les suggestions IRIS */
+        .iris-suggestion {
+            border: 2px solid #06b6d4;
+            box-shadow: 0 0 20px rgba(6, 182, 212, 0.4);
+            animation: pulse-border 2s infinite;
+        }
+        @keyframes pulse-border {
+            0% { border-color: #06b6d4; }
+            50% { border-color: #ef4444; }
+            100% { border-color: #06b6d4; }
+        }
+
+        .bus-marker { 
+            width: 22px; height: 22px; background: #06b6d4; border: 3px solid white; 
+            border-radius: 4px; transform: rotate(45deg); box-shadow: 0 0 15px #06b6d4;
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
     </style>
 </head>
 <body class="flex">
@@ -23,15 +40,18 @@
     <div class="relative flex-1 flex flex-col">
         <div id="map"></div>
         
-        <div class="absolute top-4 left-4 z-[1000] flex gap-2">
-            <div class="glass p-4 rounded-2xl border border-white/10 shadow-2xl">
-                <h3 class="text-[10px] font-black text-cyan-400 uppercase mb-2">État de la Flotte (TM)</h3>
-                <table class="text-[11px] w-64">
+        <div class="absolute top-6 left-6 z-[1000]">
+            <div class="glass p-5 rounded-2xl shadow-2xl w-80">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-[10px] font-black text-cyan-400 uppercase tracking-widest italic">Analyseur d'Intervalle (EID)</h3>
+                    <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                </div>
+                <table class="text-[11px] w-full mono">
                     <thead>
-                        <tr class="text-slate-500 border-b border-slate-700">
-                            <th class="text-left pb-1">POL</th>
-                            <th class="text-center pb-1">POS</th>
-                            <th class="text-right pb-1">EID</th>
+                        <tr class="text-slate-500 border-b border-slate-800">
+                            <th class="text-left pb-2">UNIT</th>
+                            <th class="text-center pb-2">STATUT</th>
+                            <th class="text-right pb-2">GAP</th>
                         </tr>
                     </thead>
                     <tbody id="tm-body">
@@ -39,86 +59,191 @@
                 </table>
             </div>
         </div>
+
+        <div id="iris-alert-zone" class="absolute bottom-10 left-1/2 -translate-x-1/2 z-[1000] w-[500px] pointer-events-none">
+            </div>
     </div>
 
-    <div class="sidebar flex flex-col">
-        <div class="p-6 bg-slate-900/80 border-b border-slate-800">
-            <div class="flex justify-between items-center mb-4">
-                <h1 class="text-2xl font-black text-cyan-400 italic orbitron">IRIS 58</h1>
-                <span class="text-[10px] bg-cyan-500/10 text-cyan-400 px-2 py-1 rounded border border-cyan-500/20 font-bold">CONTRAT IDFM</span>
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-                <div class="bg-black/40 p-3 rounded-xl border border-slate-800">
-                    <p class="text-[9px] text-slate-500 font-bold uppercase">KM Parcourus</p>
-                    <p id="km-total" class="text-xl font-black orbitron text-green-400">0.00</p>
-                </div>
-                <div class="bg-black/40 p-3 rounded-xl border border-slate-800">
-                    <p class="text-[9px] text-slate-500 font-bold uppercase">KM Perdus (Rebrous.)</p>
-                    <p id="km-lost" class="text-xl font-black orbitron text-red-500">0.00</p>
+    <div class="sidebar">
+        <div class="p-8 bg-slate-900/40 border-b border-white/5">
+            <div class="flex justify-between items-center">
+                <h1 class="text-3xl font-black text-white italic orbitron tracking-tighter">IRIS <span class="text-cyan-400">58</span></h1>
+                <div class="text-right">
+                    <div id="clock" class="text-lg font-bold mono">00:00:00</div>
+                    <span class="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Secteur: Montparnasse / Vanves</span>
                 </div>
             </div>
         </div>
 
-        <div class="p-6 border-b border-slate-800">
-            <p class="text-[10px] text-slate-500 font-bold uppercase mb-3 tracking-widest text-center">Terminal de Communication</p>
-            <div class="space-y-3">
-                <select id="target-bus" class="w-full bg-slate-800 border border-slate-700 p-3 rounded-xl text-sm outline-none focus:border-cyan-500">
-                    <option value="ALL">Tous les bus (Broadcast)</option>
+        <div class="grid grid-cols-2 gap-px bg-white/5 border-b border-white/5">
+            <div class="p-6 bg-[#050505]">
+                <p class="text-[9px] text-slate-500 font-bold uppercase mb-1">KM Produits (IDFM)</p>
+                <p id="km-total" class="text-2xl font-black orbitron text-cyan-400">0.00</p>
+            </div>
+            <div class="p-6 bg-[#050505]">
+                <p class="text-[9px] text-slate-500 font-bold uppercase mb-1">KM Perdus (Sanction)</p>
+                <p id="km-lost" class="text-2xl font-black orbitron text-red-500">0.00</p>
+            </div>
+        </div>
+
+        <div class="p-6 border-b border-white/5 bg-slate-900/20">
+            <div class="space-y-4">
+                <select id="target-bus" class="w-full bg-slate-800/50 border border-white/10 p-3 rounded-xl text-xs font-bold outline-none focus:border-cyan-500 transition-all text-white">
+                    <option value="ALL">DIFFUSION GÉNÉRALE (TOUS)</option>
                 </select>
-                <textarea id="msg-text" placeholder="Écrire le message au chauffeur..." class="w-full bg-black/50 border border-slate-700 p-3 rounded-xl text-sm h-24 outline-none focus:border-cyan-500 resize-none"></textarea>
+                
+                <div class="relative">
+                    <textarea id="msg-text" placeholder="Saisir ordre de mission..." class="w-full bg-black/50 border border-white/10 p-4 rounded-xl text-xs mono h-24 outline-none focus:border-cyan-500 transition-all resize-none text-cyan-100"></textarea>
+                    <div class="absolute bottom-2 right-3 text-[8px] text-slate-600 font-bold uppercase">IRIS Link Active</div>
+                </div>
+
                 <div class="flex gap-2">
-                    <button onclick="sendOrder('RETOURNEMENT')" class="flex-1 bg-red-600/20 text-red-500 border border-red-500/50 py-3 rounded-xl font-black text-[10px] uppercase hover:bg-red-600 hover:text-white transition-all">Ordre Rebroussement</button>
-                    <button onclick="sendFreeMsg()" class="flex-1 bg-cyan-600 py-3 rounded-xl font-black text-[10px] uppercase shadow-lg shadow-cyan-600/20">Envoyer Message</button>
+                    <button onclick="executeOrder('RETOURNEMENT')" class="flex-1 bg-red-600/10 text-red-500 border border-red-500/20 py-4 rounded-xl font-black text-[10px] uppercase hover:bg-red-600 hover:text-white transition-all shadow-lg shadow-red-600/5">Forcer Rebroussement</button>
+                    <button onclick="sendFreeMsg()" class="flex-1 bg-cyan-600 py-4 rounded-xl font-black text-[10px] uppercase shadow-lg shadow-cyan-600/30 hover:bg-cyan-500 transition-all">Transmettre Message</button>
                 </div>
             </div>
         </div>
 
-        <div id="bus-list" class="flex-1 overflow-y-auto p-4 space-y-3">
+        <div id="bus-list" class="flex-1 overflow-y-auto p-4 space-y-2 bg-[#030303]">
             </div>
 
-        <div class="p-4 bg-black font-mono text-[9px] text-cyan-500/50" id="logs">
-            [SYS] Système IRIS prêt.
+        <div class="p-4 bg-black border-t border-white/5 font-mono text-[9px] text-slate-600 h-32 overflow-y-auto" id="logs">
+            <div>> IRIS_V6_CORE BOOT SEQUENCE COMPLETED.</div>
+            <div>> IDFM_CONTRACT_DATA_LINKED.</div>
         </div>
     </div>
 
     <script>
         let map, fleet = {};
-        let kmTotal = 0;
-        let kmPerdus = 0;
-        const KM_PAR_REBROUSSAGE = 4.2; // Valeur contractuelle moyenne ligne 58
+        let kmTotal = 0, kmPerdus = 0;
+        const KM_PENALITE = 4.2; // Km moyen d'un demi-tour ligne 58
 
         function init() {
+            // Horloge
+            setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('fr-FR'); }, 1000);
+
+            // Carte
             map = L.map('map', {zoomControl:false}).setView([48.840, 2.320], 13);
             L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
+            // PeerJS
             const peer = new Peer('IRIS-PCC-58-GLOBAL');
             peer.on('connection', conn => {
                 conn.on('data', d => { if(d.type === 'pos') updateBus(d, conn); });
             });
+
+            // Analyse IA IRIS toutes les 5 secondes
+            setInterval(irisAIEngine, 5000);
         }
 
         function updateBus(d, conn) {
-            if(!fleet[d.pol]) {
-                fleet[d.pol] = {
-                    marker: L.circleMarker([d.lat, d.lon], {radius:8, color:'#22d3ee', fillOpacity:1}).addTo(map),
-                    lastPos: [d.lat, d.lon]
+            const id = d.pol;
+            if(!fleet[id]) {
+                addLog(`NOUVEAU CONTACT : POLICE ${id}`, 'text-cyan-400');
+                fleet[id] = {
+                    marker: L.marker([d.lat, d.lon], { icon: L.divIcon({html:'<div class="bus-marker"></div>', className:''}) }).addTo(map),
+                    lastPos: [d.lat, d.lon],
+                    pol: id
                 };
-                addBusToSelect(d.pol);
+                updateSelect();
             }
-            
-            // Calcul KM Parcourus (IDFM)
-            let dist = map.distance(fleet[d.pol].lastPos, [d.lat, d.lon]) / 1000;
-            if(dist > 0.01) {
+
+            // Calcul KM IDFM
+            let dist = map.distance(fleet[id].lastPos, [d.lat, d.lon]) / 1000;
+            if(dist > 0.005) {
                 kmTotal += dist;
                 document.getElementById('km-total').innerText = kmTotal.toFixed(2);
             }
 
-            fleet[d.pol].marker.setLatLng([d.lat, d.lon]);
-            fleet[d.pol].lastPos = [d.lat, d.lon];
-            fleet[d.pol].conn = conn;
-            fleet[d.pol].pol = d.pol;
+            fleet[id].marker.setLatLng([d.lat, d.lon]);
+            fleet[id].lastPos = [d.lat, d.lon];
+            fleet[id].conn = conn;
+            fleet[id].lastUpdate = Date.now();
 
-            refreshUI();
+            refreshUI(id);
+        }
+
+        function refreshUI(id) {
+            // Mise à jour Tableau de Marche
+            let row = document.getElementById(`tm-${id}`);
+            if(!row) {
+                row = document.createElement('tr'); row.id = `tm-${id}`;
+                row.className = "border-b border-white/5";
+                document.getElementById('tm-body').appendChild(row);
+            }
+            row.innerHTML = `<td class="py-2 font-bold text-white uppercase italic">P${id}</td>
+                             <td class="text-center text-slate-500 font-bold">NORMAL</td>
+                             <td class="text-right text-cyan-400 font-bold">+01'</td>`;
+
+            // Mise à jour Sidebar Strip
+            let strip = document.getElementById(`strip-${id}`);
+            if(!strip) {
+                strip = document.createElement('div'); strip.id = `strip-${id}`;
+                strip.className = "bg-white/5 border border-white/5 p-4 rounded-xl flex justify-between items-center transition-all";
+                document.getElementById('bus-list').appendChild(strip);
+            }
+            strip.innerHTML = `<div>
+                                 <div class="text-[10px] text-slate-500 font-black uppercase">Unit ID</div>
+                                 <div class="text-lg font-black orbitron italic text-white">${id}</div>
+                               </div>
+                               <div class="text-right">
+                                 <div class="text-[8px] text-cyan-500 font-bold uppercase mb-1">Signal Stable</div>
+                                 <div class="w-12 h-1 bg-cyan-900 rounded-full overflow-hidden">
+                                     <div class="h-full bg-cyan-400" style="width: 80%"></div>
+                                 </div>
+                               </div>`;
+        }
+
+        // L'IA DE RÉGULATION (CORE)
+        function irisAIEngine() {
+            const ids = Object.keys(fleet);
+            if(ids.length < 2) return;
+
+            for(let i=0; i<ids.length; i++) {
+                for(let j=i+1; j<ids.length; j++) {
+                    const b1 = fleet[ids[i]], b2 = fleet[ids[j]];
+                    const dist = map.distance(b1.lastPos, b2.lastPos);
+
+                    if(dist < 350) { // Risque de couplage
+                        showIrisSuggestion(ids[i], ids[j], "COUPLAGE IMMINENT");
+                    }
+                }
+            }
+        }
+
+        function showIrisSuggestion(p1, p2, motif) {
+            const zone = document.getElementById('iris-alert-zone');
+            if(document.getElementById(`suggest-${p1}`)) return;
+
+            const div = document.createElement('div');
+            div.id = `suggest-${p1}`;
+            div.className = "iris-suggestion glass p-6 rounded-2xl mb-4 pointer-events-auto cursor-pointer translate-y-0 opacity-100 transition-all";
+            div.innerHTML = `
+                <div class="flex items-center gap-4">
+                    <div class="bg-red-600 p-3 rounded-lg animate-pulse">⚠️</div>
+                    <div class="flex-1">
+                        <h4 class="text-xs font-black text-white uppercase">${motif} : P${p1} / P${p2}</h4>
+                        <p class="text-[10px] text-slate-400 font-mono mt-1">L'IA préconise un rebroussage du bus P${p1} pour restaurer l'EID.</p>
+                    </div>
+                    <button onclick="applyIrisOrder('${p1}')" class="bg-cyan-500 text-black px-4 py-2 rounded-lg font-black text-[10px] hover:bg-white transition-all">APPLIQUER</button>
+                </div>
+            `;
+            zone.appendChild(div);
+        }
+
+        function applyIrisOrder(id) {
+            executeOrder('RETOURNEMENT', id);
+            document.getElementById(`suggest-${id}`).remove();
+        }
+
+        function executeOrder(type, forcedId = null) {
+            const target = forcedId || document.getElementById('target-bus').value;
+            if(target === "ALL") return alert("Cible spécifique requise.");
+
+            fleet[target].conn.send({type: type});
+            kmPerdus += KM_PENALITE;
+            document.getElementById('km-lost').innerText = kmPerdus.toFixed(2);
+            addLog(`ORDRE EXÉCUTÉ : ${type} -> P${target} (-${KM_PENALITE}km IDFM)`, 'text-red-500 font-bold');
         }
 
         function sendFreeMsg() {
@@ -128,52 +253,21 @@
 
             if(target === "ALL") {
                 Object.values(fleet).forEach(b => b.conn.send({type:'msg', content: txt}));
+                addLog(`BROADCAST : "${txt}"`, 'text-cyan-500');
             } else {
                 fleet[target].conn.send({type:'msg', content: txt});
+                addLog(`MESSAGE PRIVÉ P${target} : "${txt}"`);
             }
-            addLog(`MESSAGE : "${txt}" envoyé à ${target}`);
             document.getElementById('msg-text').value = '';
         }
 
-        function sendOrder(type) {
-            const target = document.getElementById('target-bus').value;
-            if(target === "ALL") return alert("Sélectionnez un bus spécifique pour le rebroussage");
-
-            fleet[target].conn.send({type: type});
-            
-            // Calcul IDFM Km Perdus
-            kmPerdus += KM_PAR_REBROUSSAGE;
-            document.getElementById('km-lost').innerText = kmPerdus.toFixed(2);
-            
-            addLog(`ORDRE : ${type} envoyé au POL ${target} (-${KM_PAR_REBROUSSAGE}km IDFM)`);
-        }
-
-        function refreshUI() {
-            const list = document.getElementById('bus-list');
-            const tm = document.getElementById('tm-body');
-            list.innerHTML = ''; tm.innerHTML = '';
-
-            Object.keys(fleet).forEach(id => {
-                // Sidebar UI
-                list.innerHTML += `<div class="bg-slate-800/50 p-4 rounded-2xl border border-slate-700 flex justify-between items-center">
-                    <div class="font-black text-xs orbitron text-white">BUS ${id}</div>
-                    <div class="w-2 h-2 bg-cyan-500 rounded-full animate-pulse"></div>
-                </div>`;
-
-                // TM UI (Tableau de marche)
-                tm.innerHTML += `<tr class="border-b border-slate-800/50">
-                    <td class="py-2 font-bold text-white">${id}</td>
-                    <td class="text-center text-slate-400 italic">EN LIGNE</td>
-                    <td class="text-right text-cyan-400 font-bold">+02'</td>
-                </tr>`;
-            });
-        }
-
-        function addBusToSelect(pol) {
+        function updateSelect() {
             const sel = document.getElementById('target-bus');
-            const opt = document.createElement('option');
-            opt.value = pol; opt.innerText = `Bus Police ${pol}`;
-            sel.appendChild(opt);
+            sel.innerHTML = '<option value="ALL">DIFFUSION GÉNÉRALE (TOUS)</option>';
+            Object.keys(fleet).forEach(id => {
+                const o = document.createElement('option'); o.value = id; o.innerText = `BUS POLICE ${id}`;
+                sel.appendChild(o);
+            });
         }
 
         function addLog(m, c='') {

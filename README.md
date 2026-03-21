@@ -8,7 +8,7 @@
 ### 📊 Indicateurs de Performance (Audit IDFM)
 | Indicateur | Objectif 2025 | Méthode de calcul IRIS |
 | :--- | :--- | :--- |
-| **Indice de Régularité** | > 90% | Écart moyen aux points pivots (Porte de vanves / 18J /Grands Augustins /Fleurus) |
+| **Indice de Régularité** | > 95% | Écart moyen aux points pivots (Porte de Vanves / 18J / Grands Augustins /Fleurus) |
 | **ROT (Offre Transport)** | 98% | KM Effectués (incl. Déviation Jaurès) |
 | **Taux de Couplage** | < 5% | Détection de "bus en paquet" via GPS |
 

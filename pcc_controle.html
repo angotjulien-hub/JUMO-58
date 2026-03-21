@@ -6,91 +6,170 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-gpx/1.7.0/gpx.min.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        body { background: #020617; color: white; display: flex; height: 100vh; font-family: sans-serif; margin: 0; }
-        #map { flex-grow: 1; height: 100%; border-right: 1px solid #1e293b; }
-        .sidebar { width: 400px; background: #0f172a; display: flex; flex-direction: column; }
-        .log-feed { flex-grow: 1; overflow-y: auto; padding: 20px; font-family: monospace; font-size: 10px; color: #64748b; }
-        .bus-marker { width: 16px; height: 16px; background: #00f2ff; border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px #00f2ff; }
+        body { background: #020617; color: white; display: flex; height: 100vh; font-family: 'Inter', sans-serif; margin: 0; overflow: hidden; }
+        #map { flex-grow: 1; height: 100%; filter: saturate(0.8) contrast(1.2); }
+        .sidebar { width: 450px; background: #0f172a; display: flex; flex-direction: column; border-left: 1px solid #1e293b; }
+        
+        /* Style des Cartouches Bus */
+        .bus-card { background: #1e293b; border-radius: 8px; padding: 12px; border-left: 4px solid #00f2ff; transition: all 0.3s; }
+        .bus-card.retard { border-left-color: #ef4444; background: #2d1616; }
+        .bus-card.avance { border-left-color: #eab308; }
+        
+        .bus-marker { width: 18px; height: 18px; background: #00f2ff; border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px #00f2ff; transition: all 0.5s ease; }
+        
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
     </style>
 </head>
 <body>
     <div id="map"></div>
+    
     <div class="sidebar shadow-2xl">
-        <div class="p-8 border-b border-slate-800">
+        <div class="p-6 border-b border-slate-800 bg-slate-900/50">
             <h1 class="text-3xl font-black text-cyan-400 italic tracking-tighter">IRIS 58 PCC</h1>
-            <div class="flex items-center gap-2 mt-2">
-                <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                <span class="text-[10px] font-bold uppercase text-slate-500">IA de régulation active</span>
+            <div class="flex justify-between items-center mt-2">
+                <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                    <span class="text-[10px] font-bold uppercase text-slate-400">Régulation IA Connectée</span>
+                </div>
+                <div id="clock" class="text-xs font-mono text-slate-500">00:00:00</div>
             </div>
         </div>
         
-        <div id="bus-cards" class="p-6 space-y-4 overflow-y-auto max-h-96">
-            </div>
+        <div id="bus-list" class="flex-grow overflow-y-auto p-4 space-y-4">
+            <div id="no-bus" class="text-center py-20 text-slate-600 text-xs italic uppercase tracking-widest">En attente de signaux...</div>
+        </div>
 
-        <div class="mt-auto p-4 bg-black/50 border-t border-slate-800">
-            <div class="text-[9px] font-black uppercase text-slate-600 mb-2 tracking-widest text-center">Journal des événements</div>
-            <div id="log" class="h-40 overflow-y-auto space-y-1"></div>
+        <div class="p-4 bg-black/80 border-t border-slate-800">
+            <div class="text-[9px] font-black uppercase text-slate-500 mb-2 tracking-widest">Console Système</div>
+            <div id="log" class="h-32 overflow-y-auto font-mono space-y-1"></div>
         </div>
     </div>
 
     <script>
         let map, fleet = {};
+        const PCC_ID = 'IRIS-PCC-58-GLOBAL';
 
         function init() {
-            map = L.map('map', {attributionControl:false}).setView([48.840, 2.320], 13);
+            // Horloge
+            setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('fr-FR'); }, 1000);
+
+            // Carte
+            map = L.map('map', {attributionControl:false, zoomControl: false}).setView([48.840, 2.320], 13);
             L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
-            // INTÉGRATION GPX : Dessine le rail de la ligne 58
-            new L.GPX("95 VM CTL.gpx", {
-                async: true,
-                polyline_options: { color: '#00f2ff', weight: 4, opacity: 0.3 }
-            }).addTo(map);
-
-            const peer = new Peer('IRIS-PCC-58-GLOBAL');
+            // PeerJS
+            const peer = new Peer(PCC_ID);
+            peer.on('open', (id) => addLog(`PCC INITIALISÉ : ${id}`, 'text-cyan-500'));
+            
             peer.on('connection', (conn) => {
                 conn.on('data', (d) => {
                     if(d.type === 'position') updateBus(d, conn);
-                    if(d.type === 'signalement') addLog(`POL ${d.police}: ${d.label}`, 'text-orange-400');
-                    if(d.type === 'SOS') addLog(`🚨 SOS POL ${d.police} 🚨`, 'text-red-500 font-black');
+                    if(d.type === 'SOS') addLog(`🚨 ALERTE SOS POL ${d.police} 🚨`, 'text-red-500 font-black animate-bounce');
                 });
             });
         }
 
         function updateBus(d, conn) {
-            if(!fleet[d.police]) {
-                fleet[d.police] = {
-                    marker: L.marker([d.lat, d.lon], {icon: L.divIcon({html:'<div class="bus-marker"></div>'})}).addTo(map).bindTooltip("POL "+d.police, {permanent:true, direction:'top'})
-                };
-                addLog(`Bus ${d.police} connecté`, 'text-cyan-400');
+            const busId = d.police;
+            document.getElementById('no-bus')?.remove();
+
+            // Simulation Retard/Avance (Valeur aléatoire pour la démo, à lier à tes horaires réels)
+            const retard = Math.floor(Math.random() * 10) - 3; // de -3 à +7 min
+            const tm = 15; // Temps de marche estimé
+
+            if(!fleet[busId]) {
+                addLog(`Bus ${busId} détecté sur la ligne`, 'text-green-400');
+                
+                const marker = L.marker([d.lat, d.lon], {
+                    icon: L.divIcon({html:'<div class="bus-marker"></div>', className:''})
+                }).addTo(map).bindTooltip(`POL ${busId}`, {permanent:true, direction:'top', offset:[0,-10]});
+
+                fleet[busId] = { marker, conn, lastUpdate: Date.now() };
+                createBusCard(busId);
             }
-            fleet[d.police].marker.setLatLng([d.lat, d.lon]);
-            fleet[d.police].lat = d.lat; fleet[d.police].lon = d.lon; fleet[d.police].conn = conn;
-            
-            checkRetournement();
+
+            // Mise à jour données
+            fleet[busId].marker.setLatLng([d.lat, d.lon]);
+            updateBusCard(busId, retard, tm);
         }
 
-        function checkRetournement() {
-            const keys = Object.keys(fleet);
-            for(let i=0; i<keys.length; i++){
-                for(let j=i+1; j<keys.length; j++){
-                    const b1 = fleet[keys[i]]; const b2 = fleet[keys[j]];
-                    const dist = map.distance([b1.lat, b1.lon], [b2.lat, b2.lon]);
-                    if(dist < 350) { // Déclenchement à 350m (Risque de retournement)
-                        b1.conn.send({type:'RETOURNEMENT'});
-                        b2.conn.send({type:'RETOURNEMENT'});
-                        addLog(`IA : Retournement POL ${keys[i]}/${keys[j]}`, 'text-red-500 italic');
-                    }
-                }
+        function createBusCard(id) {
+            const list = document.getElementById('bus-list');
+            const card = document.createElement('div');
+            card.id = `card-${id}`;
+            card.className = `bus-card`;
+            card.innerHTML = `
+                <div class="flex justify-between items-start mb-2">
+                    <div>
+                        <span class="text-xs font-bold text-slate-400">POLICE</span>
+                        <div class="text-xl font-black text-white">${id}</div>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-[10px] text-slate-400 uppercase">Statut</span>
+                        <div id="statut-${id}" class="text-xs font-bold text-green-400">EN LIGNE</div>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-2 mb-4">
+                    <div class="bg-black/30 p-2 rounded">
+                        <span class="text-[9px] text-slate-500 block uppercase">Retard/Avance</span>
+                        <span id="delay-${id}" class="text-lg font-mono font-bold text-white">--</span>
+                    </div>
+                    <div class="bg-black/30 p-2 rounded">
+                        <span class="text-[9px] text-slate-500 block uppercase">TM Restant</span>
+                        <span id="tm-${id}" class="text-lg font-mono font-bold text-cyan-400">-- MIN</span>
+                    </div>
+                </div>
+
+                <div class="flex gap-2">
+                    <button onclick="sendOrder('${id}', 'RETOURNEMENT')" class="flex-1 bg-cyan-600 hover:bg-cyan-500 text-[9px] font-black py-2 rounded transition">REBROUSSER</button>
+                    <button onclick="sendOrder('${id}', 'REGULATION')" class="flex-1 bg-slate-700 hover:bg-slate-600 text-[9px] font-black py-2 rounded transition">RÉGULER</button>
+                    <button onclick="sendOrder('${id}', 'MESSAGE')" class="bg-slate-800 p-2 rounded">💬</button>
+                </div>
+            `;
+            list.appendChild(card);
+        }
+
+        function updateBusCard(id, delay, tm) {
+            const card = document.getElementById(`card-${id}`);
+            const delayEl = document.getElementById(`delay-${id}`);
+            const tmEl = document.getElementById(`tm-${id}`);
+
+            // Logique de couleur pour le retard
+            if(delay > 3) {
+                card.className = "bus-card retard";
+                delayEl.innerText = `+${delay} MIN`;
+                delayEl.className = "text-lg font-mono font-bold text-red-500";
+            } else if (delay < 0) {
+                card.className = "bus-card avance";
+                delayEl.innerText = `${delay} MIN`;
+                delayEl.className = "text-lg font-mono font-bold text-yellow-500";
+            } else {
+                card.className = "bus-card";
+                delayEl.innerText = `+${delay} MIN`;
+                delayEl.className = "text-lg font-mono font-bold text-white";
+            }
+
+            tmEl.innerText = `${tm} MIN`;
+        }
+
+        function sendOrder(id, type) {
+            if(fleet[id] && fleet[id].conn) {
+                fleet[id].conn.send({ type: 'ORDRE_PCC', action: type });
+                addLog(`ORDRE MANUEL : ${type} envoyé à POL ${id}`, 'text-yellow-400 italic');
+                
+                // Effet visuel sur le bouton (optionnel)
+                alert(`Ordre ${type} transmis au bus ${id}`);
             }
         }
 
         function addLog(msg, cl) {
             const l = document.getElementById('log');
-            const t = new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
-            l.innerHTML = `<div class="${cl} text-[10px]">[${t}] ${msg}</div>` + l.innerHTML;
+            const t = new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+            l.innerHTML = `<div class="${cl} text-[10px] border-b border-white/5 pb-1 mb-1">[${t}] ${msg}</div>` + l.innerHTML;
         }
 
         window.onload = init;

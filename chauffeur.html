@@ -2,96 +2,138 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IRIS - Terminal Chauffeur</title>
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>IRIS v5.0 - Ligne 58</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
-        body { background: #0a0a0a; color: white; font-family: sans-serif; }
-        .status-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
-        .bg-iris { background: #00f2ff; }
+        body { background: #000; color: white; font-family: 'Inter', sans-serif; overflow: hidden; transition: all 0.5s ease; }
+        .ui-card { background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 20px; }
+        
+        /* Styles Dynamiques */
+        .mission-ctl { border-top: 6px solid #22d3ee; box-shadow: 0 -10px 30px rgba(34, 211, 238, 0.1); }
+        .mission-van { border-top: 6px solid #fbbf24; box-shadow: 0 -10px 30px rgba(251, 191, 36, 0.1); }
+        
+        #display-station { cursor: pointer; user-select: none; }
+        #map { height: 180px; width: 100%; border-radius: 15px; z-index: 1; filter: grayscale(1) invert(1) contrast(1.2); }
     </style>
 </head>
-<body class="flex flex-col items-center justify-center h-screen p-6 text-center">
+<body class="h-screen flex flex-col p-4">
 
-    <div class="mb-8">
-        <h1 class="text-2xl font-bold tracking-tighter mb-2">TERMINAL IRIS</h1>
-        <p class="text-zinc-500 text-sm uppercase tracking-widest">Transmission Ligne 58</p>
-    </div>
-
-    <div id="setup-zone" class="w-full max-w-xs">
-        <input type="text" id="bus-id" placeholder="ID du Bus (ex: 5801)" 
-               class="w-full bg-zinc-900 border border-zinc-700 p-3 rounded mb-4 text-center text-xl focus:border-cyan-400 outline-none">
-        <button onclick="startTransmission()" 
-                class="w-full bg-iris text-black font-bold p-4 rounded uppercase tracking-wider">
-            Se Connecter au PCC
-        </button>
-    </div>
-
-    <div id="monitor-zone" class="hidden w-full max-w-xs bg-zinc-900 p-6 rounded-lg border border-zinc-800">
-        <div class="mb-4">
-            <span id="dot" class="status-dot bg-zinc-700"></span>
-            <span id="status-text" class="text-sm font-mono text-zinc-400 ml-2">HORS LIGNE</span>
+    <header class="flex justify-between items-center mb-4">
+        <div class="flex items-center gap-3">
+            <div id="line-badge" class="bg-[#FFD700] text-black px-4 py-1 text-3xl font-black rounded-lg">58</div>
+            <div>
+                <p class="text-[10px] text-zinc-500 uppercase font-bold tracking-widest">Direction actuelle</p>
+                <p id="mission-label" class="text-cyan-400 font-black uppercase text-xl tracking-tighter">VERS CHÂTELET</p>
+            </div>
         </div>
-        <div class="text-4xl font-bold mb-1" id="display-id">----</div>
-        <div class="text-[10px] text-zinc-500 mb-6">TRANSMISSION GPS ACTIVE</div>
-        
-        <div class="text-xs text-left bg-black p-3 rounded font-mono text-cyan-500" id="gps-log">
-            En attente de signal...
+        <button onclick="basculerMission()" class="bg-zinc-900 border border-zinc-700 px-6 py-3 rounded-xl text-xs font-black uppercase active:scale-95 transition-all">
+            🔄 Inverser
+        </button>
+    </header>
+
+    <main id="main-card" class="ui-card p-6 mb-4 flex flex-col items-center justify-center mission-ctl">
+        <span class="text-zinc-600 text-[10px] uppercase tracking-[0.4em] mb-4">Prochain Arrêt</span>
+        <h1 id="display-station" class="text-5xl font-black text-center uppercase tracking-tighter leading-none min-h-[120px] flex items-center italic">
+            CHARGEMENT...
+        </h1>
+    </main>
+
+    <div class="grid grid-cols-3 gap-4 mb-4">
+        <div class="col-span-2 ui-card p-2">
+            <div id="map"></div>
+        </div>
+        <div class="flex flex-col gap-4">
+            <div class="ui-card flex-1 flex flex-col items-center justify-center p-2">
+                <span class="text-zinc-600 text-[8px] uppercase font-bold italic">Vitesse</span>
+                <div id="speed" class="text-4xl font-black italic">00</div>
+                <span class="text-[8px] text-zinc-700 font-bold tracking-widest">KM/H</span>
+            </div>
+            <div class="ui-card flex-1 flex flex-col items-center justify-center p-2">
+                <span class="text-zinc-600 text-[8px] uppercase font-bold italic">Signal</span>
+                <div id="gps-status" class="w-4 h-4 rounded-full bg-red-600 animate-pulse"></div>
+            </div>
         </div>
     </div>
 
     <script>
-        let peer, conn;
-        const PCC_ID = 'IRIS-PCC-58-GLOBAL';
+        const DATA = {
+            "V_CTL": [
+                { name: "Vanves-Lycée Michelet" }, { name: "Carrefour Albert Legris" }, { name: "Jean Jaurès-Jean Bleuzen" },
+                { name: "Adolphe Pinard" }, { name: "Pont de la Vallée" }, { name: "Porte de Vanves" },
+                { name: "Colonel Monteil" }, { name: "Didot" }, { name: "Hôpitaux Broussais et St-Joseph" },
+                { name: "Didot-Alésia" }, { name: "Pernety" }, { name: "Château-Mairie du 14ème" },
+                { name: "Losserand-Maine" }, { name: "Gaîté" }, { name: "Gare Montparnasse" },
+                { name: "18 Juin" }, { name: "Rue du Départ" }, { name: "Vavin" },
+                { name: "Guynemer-Raspail" }, { name: "Fleurus" }, { name: "Musée du Luxembourg" },
+                { name: "Sénat" }, { name: "Théâtre de l'Odéon" }, { name: "Saint-Germain-Odéon" },
+                { name: "Saint-André des Arts" }, { name: "Quai des Grands Augustins" },
+                { name: "Pont Neuf-Q. Grands Augustins" }, { name: "Châtelet-Quai de Gevres" }, { name: "Châtelet" }
+            ],
+            "V_VAN": [
+                { name: "Châtelet" }, { name: "Cité-Palais de Justice" }, { name: "Saint-Michel" },
+                { name: "Guénégaud" }, { name: "Mazarine" }, { name: "Saint-Germain-Odéon" },
+                { name: "Sénat" }, { name: "Musée du Luxembourg" }, { name: "Guynemer-Vavin" },
+                { name: "Bréa-Notre-Dame des Champs" }, { name: "Vavin" }, { name: "Montparnasse-Cinémas" },
+                { name: "18 Juin" }, { name: "Rue du Départ" }, { name: "Gare Montparnasse" },
+                { name: "Gaîté" }, { name: "Losserand-Maine" }, { name: "Château-Mairie du 14ème" },
+                { name: "Rue Bénard" }, { name: "Alésia-Les Plantes" }, { name: "Hôpital N-D de Bon Secours" },
+                { name: "Jean Moulin" }, { name: "Porte de Châtillon" }, { name: "Porte Didot-Lycée Raspail" },
+                { name: "Porte de Vanves" }, { name: "Pont de la Vallée" }, { name: "Jean Jaurès-Jean Bleuzen" },
+                { name: "Carrefour Albert Legris" }, { name: "Vanves-Lycée Michelet" }
+            ]
+        };
 
-        function startTransmission() {
-            const id = document.getElementById('bus-id').value;
-            if (!id) return alert("Entrez un ID de bus !");
+        let currentMission = "V_CTL";
+        let currentIndex = 0;
 
-            document.getElementById('setup-zone').classList.add('hidden');
-            document.getElementById('monitor-zone').classList.remove('hidden');
-            document.getElementById('display-id').innerText = id;
-
-            // Initialisation PeerJS (ID aléatoire pour le chauffeur)
-            peer = new Peer();
-
-            peer.on('open', () => {
-                connectToPCC(id);
-            });
+        function basculerMission() {
+            currentMission = (currentMission === "V_CTL") ? "V_VAN" : "V_CTL";
+            currentIndex = 0;
+            
+            const label = document.getElementById('mission-label');
+            const card = document.getElementById('main-card');
+            
+            if(currentMission === "V_CTL") {
+                label.innerText = "VERS CHÂTELET";
+                label.className = "text-cyan-400 font-black uppercase text-xl tracking-tighter";
+                card.className = "ui-card p-6 mb-4 flex flex-col items-center justify-center mission-ctl";
+            } else {
+                label.innerText = "VERS VANVES";
+                label.className = "text-yellow-400 font-black uppercase text-xl tracking-tighter";
+                card.className = "ui-card p-6 mb-4 flex flex-col items-center justify-center mission-van";
+            }
+            updateDisplay();
         }
 
-        function connectToPCC(busId) {
-            conn = peer.connect(PCC_ID);
+        function updateDisplay() {
+            const stations = DATA[currentMission];
+            document.getElementById('display-station').innerText = stations[currentIndex].name;
+        }
 
-            conn.on('open', () => {
-                document.getElementById('dot').className = "status-dot bg-green-500";
-                document.getElementById('status-text').innerText = "CONNECTÉ AU PCC";
-                
-                // Démarrage du GPS
+        // Click sur le nom pour avancer manuellement
+        document.getElementById('display-station').onclick = function() {
+            currentIndex = (currentIndex + 1) % DATA[currentMission].length;
+            updateDisplay();
+        };
+
+        function init() {
+            const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.8566, 2.3522], 14);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+            updateDisplay();
+            
+            if ("geolocation" in navigator) {
                 navigator.geolocation.watchPosition((pos) => {
-                    const data = {
-                        type: 'position',
-                        id: busId,
-                        lat: pos.coords.latitude,
-                        lon: pos.coords.longitude
-                    };
-                    
-                    conn.send(data);
-                    document.getElementById('gps-log').innerText = `LAT: ${data.lat.toFixed(5)}\nLON: ${data.lon.toFixed(5)}`;
-                }, (err) => {
-                    console.error(err);
-                    document.getElementById('gps-log').innerText = "ERREUR GPS";
-                }, { enableHighAccuracy: true });
-            });
-
-            conn.on('close', () => {
-                document.getElementById('dot').className = "status-dot bg-red-500";
-                document.getElementById('status-text').innerText = "DÉCONNECTÉ";
-                // Tentative de reconnexion automatique
-                setTimeout(() => connectToPCC(busId), 3000);
-            });
+                    const speed = Math.round((pos.coords.speed || 0) * 3.6);
+                    document.getElementById('speed').innerText = speed.toString().padStart(2, '0');
+                    document.getElementById('gps-status').className = "w-4 h-4 rounded-full bg-green-500 shadow-[0_0_15px_green]";
+                }, null, { enableHighAccuracy: true });
+            }
         }
+
+        window.onload = init;
     </script>
 </body>
 </html>

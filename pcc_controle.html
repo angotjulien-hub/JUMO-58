@@ -2,174 +2,183 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>IRIS 58 - MASTER PCC</title>
+    <title>IRIS 58 - PCC MASTER & IDFM DATA</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
-        body { background: #020617; color: white; display: flex; height: 100vh; font-family: 'Inter', sans-serif; margin: 0; overflow: hidden; }
-        #map { flex-grow: 1; height: 100%; filter: saturate(0.8) contrast(1.2); }
-        .sidebar { width: 450px; background: #0f172a; display: flex; flex-direction: column; border-left: 1px solid #1e293b; }
-        
-        /* Style des Cartouches Bus */
-        .bus-card { background: #1e293b; border-radius: 8px; padding: 12px; border-left: 4px solid #00f2ff; transition: all 0.3s; }
-        .bus-card.retard { border-left-color: #ef4444; background: #2d1616; }
-        .bus-card.avance { border-left-color: #eab308; }
-        
-        .bus-marker { width: 18px; height: 18px; background: #00f2ff; border: 3px solid white; border-radius: 50%; box-shadow: 0 0 15px #00f2ff; transition: all 0.5s ease; }
-        
+        body { background: #020617; color: white; font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; }
+        #map { flex: 1; height: 100%; filter: grayscale(1) invert(0.92) contrast(1.2); }
+        .sidebar { width: 450px; background: #0f172a; border-left: 2px solid #1e293b; display: flex; flex-col; }
+        .orbitron { font-family: 'Orbitron', sans-serif; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); }
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
     </style>
 </head>
-<body>
-    <div id="map"></div>
-    
-    <div class="sidebar shadow-2xl">
-        <div class="p-6 border-b border-slate-800 bg-slate-900/50">
-            <h1 class="text-3xl font-black text-cyan-400 italic tracking-tighter">IRIS 58 PCC</h1>
-            <div class="flex justify-between items-center mt-2">
-                <div class="flex items-center gap-2">
-                    <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                    <span class="text-[10px] font-bold uppercase text-slate-400">Régulation IA Connectée</span>
-                </div>
-                <div id="clock" class="text-xs font-mono text-slate-500">00:00:00</div>
+<body class="flex">
+
+    <div class="relative flex-1 flex flex-col">
+        <div id="map"></div>
+        
+        <div class="absolute top-4 left-4 z-[1000] flex gap-2">
+            <div class="glass p-4 rounded-2xl border border-white/10 shadow-2xl">
+                <h3 class="text-[10px] font-black text-cyan-400 uppercase mb-2">État de la Flotte (TM)</h3>
+                <table class="text-[11px] w-64">
+                    <thead>
+                        <tr class="text-slate-500 border-b border-slate-700">
+                            <th class="text-left pb-1">POL</th>
+                            <th class="text-center pb-1">POS</th>
+                            <th class="text-right pb-1">EID</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tm-body">
+                        </tbody>
+                </table>
             </div>
         </div>
-        
-        <div id="bus-list" class="flex-grow overflow-y-auto p-4 space-y-4">
-            <div id="no-bus" class="text-center py-20 text-slate-600 text-xs italic uppercase tracking-widest">En attente de signaux...</div>
+    </div>
+
+    <div class="sidebar flex flex-col">
+        <div class="p-6 bg-slate-900/80 border-b border-slate-800">
+            <div class="flex justify-between items-center mb-4">
+                <h1 class="text-2xl font-black text-cyan-400 italic orbitron">IRIS 58</h1>
+                <span class="text-[10px] bg-cyan-500/10 text-cyan-400 px-2 py-1 rounded border border-cyan-500/20 font-bold">CONTRAT IDFM</span>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-black/40 p-3 rounded-xl border border-slate-800">
+                    <p class="text-[9px] text-slate-500 font-bold uppercase">KM Parcourus</p>
+                    <p id="km-total" class="text-xl font-black orbitron text-green-400">0.00</p>
+                </div>
+                <div class="bg-black/40 p-3 rounded-xl border border-slate-800">
+                    <p class="text-[9px] text-slate-500 font-bold uppercase">KM Perdus (Rebrous.)</p>
+                    <p id="km-lost" class="text-xl font-black orbitron text-red-500">0.00</p>
+                </div>
+            </div>
         </div>
 
-        <div class="p-4 bg-black/80 border-t border-slate-800">
-            <div class="text-[9px] font-black uppercase text-slate-500 mb-2 tracking-widest">Console Système</div>
-            <div id="log" class="h-32 overflow-y-auto font-mono space-y-1"></div>
+        <div class="p-6 border-b border-slate-800">
+            <p class="text-[10px] text-slate-500 font-bold uppercase mb-3 tracking-widest text-center">Terminal de Communication</p>
+            <div class="space-y-3">
+                <select id="target-bus" class="w-full bg-slate-800 border border-slate-700 p-3 rounded-xl text-sm outline-none focus:border-cyan-500">
+                    <option value="ALL">Tous les bus (Broadcast)</option>
+                </select>
+                <textarea id="msg-text" placeholder="Écrire le message au chauffeur..." class="w-full bg-black/50 border border-slate-700 p-3 rounded-xl text-sm h-24 outline-none focus:border-cyan-500 resize-none"></textarea>
+                <div class="flex gap-2">
+                    <button onclick="sendOrder('RETOURNEMENT')" class="flex-1 bg-red-600/20 text-red-500 border border-red-500/50 py-3 rounded-xl font-black text-[10px] uppercase hover:bg-red-600 hover:text-white transition-all">Ordre Rebroussement</button>
+                    <button onclick="sendFreeMsg()" class="flex-1 bg-cyan-600 py-3 rounded-xl font-black text-[10px] uppercase shadow-lg shadow-cyan-600/20">Envoyer Message</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="bus-list" class="flex-1 overflow-y-auto p-4 space-y-3">
+            </div>
+
+        <div class="p-4 bg-black font-mono text-[9px] text-cyan-500/50" id="logs">
+            [SYS] Système IRIS prêt.
         </div>
     </div>
 
     <script>
         let map, fleet = {};
-        const PCC_ID = 'IRIS-PCC-58-GLOBAL';
+        let kmTotal = 0;
+        let kmPerdus = 0;
+        const KM_PAR_REBROUSSAGE = 4.2; // Valeur contractuelle moyenne ligne 58
 
         function init() {
-            // Horloge
-            setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('fr-FR'); }, 1000);
-
-            // Carte
-            map = L.map('map', {attributionControl:false, zoomControl: false}).setView([48.840, 2.320], 13);
+            map = L.map('map', {zoomControl:false}).setView([48.840, 2.320], 13);
             L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
-            // PeerJS
-            const peer = new Peer(PCC_ID);
-            peer.on('open', (id) => addLog(`PCC INITIALISÉ : ${id}`, 'text-cyan-500'));
-            
-            peer.on('connection', (conn) => {
-                conn.on('data', (d) => {
-                    if(d.type === 'position') updateBus(d, conn);
-                    if(d.type === 'SOS') addLog(`🚨 ALERTE SOS POL ${d.police} 🚨`, 'text-red-500 font-black animate-bounce');
-                });
+            const peer = new Peer('IRIS-PCC-58-GLOBAL');
+            peer.on('connection', conn => {
+                conn.on('data', d => { if(d.type === 'pos') updateBus(d, conn); });
             });
         }
 
         function updateBus(d, conn) {
-            const busId = d.police;
-            document.getElementById('no-bus')?.remove();
-
-            // Simulation Retard/Avance (Valeur aléatoire pour la démo, à lier à tes horaires réels)
-            const retard = Math.floor(Math.random() * 10) - 3; // de -3 à +7 min
-            const tm = 15; // Temps de marche estimé
-
-            if(!fleet[busId]) {
-                addLog(`Bus ${busId} détecté sur la ligne`, 'text-green-400');
-                
-                const marker = L.marker([d.lat, d.lon], {
-                    icon: L.divIcon({html:'<div class="bus-marker"></div>', className:''})
-                }).addTo(map).bindTooltip(`POL ${busId}`, {permanent:true, direction:'top', offset:[0,-10]});
-
-                fleet[busId] = { marker, conn, lastUpdate: Date.now() };
-                createBusCard(busId);
+            if(!fleet[d.pol]) {
+                fleet[d.pol] = {
+                    marker: L.circleMarker([d.lat, d.lon], {radius:8, color:'#22d3ee', fillOpacity:1}).addTo(map),
+                    lastPos: [d.lat, d.lon]
+                };
+                addBusToSelect(d.pol);
+            }
+            
+            // Calcul KM Parcourus (IDFM)
+            let dist = map.distance(fleet[d.pol].lastPos, [d.lat, d.lon]) / 1000;
+            if(dist > 0.01) {
+                kmTotal += dist;
+                document.getElementById('km-total').innerText = kmTotal.toFixed(2);
             }
 
-            // Mise à jour données
-            fleet[busId].marker.setLatLng([d.lat, d.lon]);
-            updateBusCard(busId, retard, tm);
+            fleet[d.pol].marker.setLatLng([d.lat, d.lon]);
+            fleet[d.pol].lastPos = [d.lat, d.lon];
+            fleet[d.pol].conn = conn;
+            fleet[d.pol].pol = d.pol;
+
+            refreshUI();
         }
 
-        function createBusCard(id) {
-            const list = document.getElementById('bus-list');
-            const card = document.createElement('div');
-            card.id = `card-${id}`;
-            card.className = `bus-card`;
-            card.innerHTML = `
-                <div class="flex justify-between items-start mb-2">
-                    <div>
-                        <span class="text-xs font-bold text-slate-400">POLICE</span>
-                        <div class="text-xl font-black text-white">${id}</div>
-                    </div>
-                    <div class="text-right">
-                        <span class="text-[10px] text-slate-400 uppercase">Statut</span>
-                        <div id="statut-${id}" class="text-xs font-bold text-green-400">EN LIGNE</div>
-                    </div>
-                </div>
-                
-                <div class="grid grid-cols-2 gap-2 mb-4">
-                    <div class="bg-black/30 p-2 rounded">
-                        <span class="text-[9px] text-slate-500 block uppercase">Retard/Avance</span>
-                        <span id="delay-${id}" class="text-lg font-mono font-bold text-white">--</span>
-                    </div>
-                    <div class="bg-black/30 p-2 rounded">
-                        <span class="text-[9px] text-slate-500 block uppercase">TM Restant</span>
-                        <span id="tm-${id}" class="text-lg font-mono font-bold text-cyan-400">-- MIN</span>
-                    </div>
-                </div>
+        function sendFreeMsg() {
+            const txt = document.getElementById('msg-text').value;
+            const target = document.getElementById('target-bus').value;
+            if(!txt) return;
 
-                <div class="flex gap-2">
-                    <button onclick="sendOrder('${id}', 'RETOURNEMENT')" class="flex-1 bg-cyan-600 hover:bg-cyan-500 text-[9px] font-black py-2 rounded transition">REBROUSSER</button>
-                    <button onclick="sendOrder('${id}', 'REGULATION')" class="flex-1 bg-slate-700 hover:bg-slate-600 text-[9px] font-black py-2 rounded transition">RÉGULER</button>
-                    <button onclick="sendOrder('${id}', 'MESSAGE')" class="bg-slate-800 p-2 rounded">💬</button>
-                </div>
-            `;
-            list.appendChild(card);
-        }
-
-        function updateBusCard(id, delay, tm) {
-            const card = document.getElementById(`card-${id}`);
-            const delayEl = document.getElementById(`delay-${id}`);
-            const tmEl = document.getElementById(`tm-${id}`);
-
-            // Logique de couleur pour le retard
-            if(delay > 3) {
-                card.className = "bus-card retard";
-                delayEl.innerText = `+${delay} MIN`;
-                delayEl.className = "text-lg font-mono font-bold text-red-500";
-            } else if (delay < 0) {
-                card.className = "bus-card avance";
-                delayEl.innerText = `${delay} MIN`;
-                delayEl.className = "text-lg font-mono font-bold text-yellow-500";
+            if(target === "ALL") {
+                Object.values(fleet).forEach(b => b.conn.send({type:'msg', content: txt}));
             } else {
-                card.className = "bus-card";
-                delayEl.innerText = `+${delay} MIN`;
-                delayEl.className = "text-lg font-mono font-bold text-white";
+                fleet[target].conn.send({type:'msg', content: txt});
             }
-
-            tmEl.innerText = `${tm} MIN`;
+            addLog(`MESSAGE : "${txt}" envoyé à ${target}`);
+            document.getElementById('msg-text').value = '';
         }
 
-        function sendOrder(id, type) {
-            if(fleet[id] && fleet[id].conn) {
-                fleet[id].conn.send({ type: 'ORDRE_PCC', action: type });
-                addLog(`ORDRE MANUEL : ${type} envoyé à POL ${id}`, 'text-yellow-400 italic');
-                
-                // Effet visuel sur le bouton (optionnel)
-                alert(`Ordre ${type} transmis au bus ${id}`);
-            }
+        function sendOrder(type) {
+            const target = document.getElementById('target-bus').value;
+            if(target === "ALL") return alert("Sélectionnez un bus spécifique pour le rebroussage");
+
+            fleet[target].conn.send({type: type});
+            
+            // Calcul IDFM Km Perdus
+            kmPerdus += KM_PAR_REBROUSSAGE;
+            document.getElementById('km-lost').innerText = kmPerdus.toFixed(2);
+            
+            addLog(`ORDRE : ${type} envoyé au POL ${target} (-${KM_PAR_REBROUSSAGE}km IDFM)`);
         }
 
-        function addLog(msg, cl) {
-            const l = document.getElementById('log');
-            const t = new Date().toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
-            l.innerHTML = `<div class="${cl} text-[10px] border-b border-white/5 pb-1 mb-1">[${t}] ${msg}</div>` + l.innerHTML;
+        function refreshUI() {
+            const list = document.getElementById('bus-list');
+            const tm = document.getElementById('tm-body');
+            list.innerHTML = ''; tm.innerHTML = '';
+
+            Object.keys(fleet).forEach(id => {
+                // Sidebar UI
+                list.innerHTML += `<div class="bg-slate-800/50 p-4 rounded-2xl border border-slate-700 flex justify-between items-center">
+                    <div class="font-black text-xs orbitron text-white">BUS ${id}</div>
+                    <div class="w-2 h-2 bg-cyan-500 rounded-full animate-pulse"></div>
+                </div>`;
+
+                // TM UI (Tableau de marche)
+                tm.innerHTML += `<tr class="border-b border-slate-800/50">
+                    <td class="py-2 font-bold text-white">${id}</td>
+                    <td class="text-center text-slate-400 italic">EN LIGNE</td>
+                    <td class="text-right text-cyan-400 font-bold">+02'</td>
+                </tr>`;
+            });
+        }
+
+        function addBusToSelect(pol) {
+            const sel = document.getElementById('target-bus');
+            const opt = document.createElement('option');
+            opt.value = pol; opt.innerText = `Bus Police ${pol}`;
+            sel.appendChild(opt);
+        }
+
+        function addLog(m, c='') {
+            const l = document.getElementById('logs');
+            l.innerHTML = `<div class="${c}">[${new Date().toLocaleTimeString()}] ${m}</div>` + l.innerHTML;
         }
 
         window.onload = init;

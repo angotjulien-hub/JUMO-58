@@ -13,14 +13,9 @@
         body { background: #000; color: white; font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; margin: 0; display: flex; flex-direction: column; }
         .ui-card { background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 20px; }
         .orbitron { font-family: 'Orbitron', sans-serif; }
-        
-        /* Styles de mission */
         .mission-ctl { border-top: 6px solid #22d3ee; box-shadow: 0 -10px 30px rgba(34, 211, 238, 0.1); }
         .mission-van { border-top: 6px solid #fbbf24; box-shadow: 0 -10px 30px rgba(251, 191, 36, 0.1); }
-        
-        /* IMPORTANT : Hauteur fixe pour que la map apparaisse */
-        #map { height: 200px; width: 100%; border-radius: 15px; filter: grayscale(1) invert(0.9) contrast(1.2); position: relative; }
-        
+        #map { height: 200px; width: 100%; border-radius: 15px; filter: grayscale(1) invert(0.9) contrast(1.2); position: relative; z-index: 10; }
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.97); z-index: 9999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(15px); padding: 20px; }
         .hidden { display: none !important; }
     </style>
@@ -35,8 +30,8 @@
             </div>
         </div>
         <div class="flex gap-2">
-             <div id="sync-status" class="bg-zinc-900 border border-zinc-700 px-3 py-2 rounded-xl text-[9px] font-black text-zinc-500">OFFLINE</div>
-             <button onclick="basculerMission()" class="bg-zinc-900 border border-zinc-700 px-4 py-2 rounded-xl text-xs font-black uppercase active:scale-95">🔄</button>
+             <div id="sync-status" class="bg-zinc-900 border border-zinc-700 px-3 py-2 rounded-xl text-[9px] font-black text-zinc-500 uppercase">OFFLINE</div>
+             <button onclick="basculerMission()" class="bg-zinc-900 border border-zinc-700 px-4 py-2 rounded-xl text-xs font-black uppercase active:scale-95 transition-all shadow-lg">🔄</button>
         </div>
     </header>
 
@@ -46,7 +41,7 @@
     </main>
 
     <div class="grid grid-cols-3 gap-4">
-        <div class="col-span-2 ui-card p-2" style="min-height: 216px;">
+        <div class="col-span-2 ui-card p-2" style="min-height: 216px; position: relative;">
             <div id="map"></div>
         </div>
         <div class="flex flex-col gap-3">
@@ -56,100 +51,19 @@
                 <span class="text-[8px] text-zinc-700 font-bold tracking-widest uppercase">km/h</span>
             </div>
             <div class="ui-card flex-1 flex flex-col items-center justify-center p-2">
-                <div id="gps-status" class="w-4 h-4 rounded-full bg-red-600"></div>
+                <div id="gps-status" class="w-4 h-4 rounded-full bg-red-600 shadow-[0_0_10px_red]"></div>
                 <span class="text-[8px] text-zinc-700 font-bold mt-1 uppercase">GPS</span>
             </div>
         </div>
     </div>
 
     <div id="modal-retournement" class="modal hidden">
-        <div class="bg-zinc-900 border-t-8 border-red-600 p-8 rounded-[40px] text-center w-full">
+        <div class="bg-zinc-900 border-t-8 border-red-600 p-8 rounded-[40px] text-center w-full shadow-2xl">
             <h2 class="text-4xl font-black text-white italic mb-4">RETOURNEMENT</h2>
-            <p class="text-zinc-400 mb-8 font-bold">REBROUSSAGE À ALÉSIA</p>
+            <p class="text-zinc-400 mb-8 font-bold uppercase">Ordre PCC : Rebroussage à <span class="text-white">Alésia</span></p>
             <button onclick="ack('modal-retournement')" class="w-full bg-red-600 py-6 rounded-3xl font-black text-2xl uppercase">Acquitter</button>
         </div>
     </div>
 
     <div id="modal-msg" class="modal hidden">
-        <div class="bg-zinc-900 border-t-8 border-cyan-500 p-8 rounded-[40px] text-center w-full">
-            <div class="text-cyan-500 font-black orbitron text-xs mb-4">MESSAGE PCC</div>
-            <div id="msg-content" class="text-2xl font-black text-white uppercase italic mb-8">...</div>
-            <button onclick="ack('modal-msg')" class="w-full bg-cyan-600 py-6 rounded-3xl font-black text-2xl uppercase">Bien reçu</button>
-        </div>
-    </div>
-
-    <script>
-        const params = new URLSearchParams(window.location.search);
-        const POL = params.get('police') || "0000";
-        let currentIndex = 0, currentMission = "V_CTL", peer, conn, map;
-
-        const DATA = {
-            "V_CTL": [{name: "Vanves-Lycée Michelet"}, {name: "Porte de Vanves"}, {name: "Alésia"}, {name: "Montparnasse"}, {name: "Châtelet"}],
-            "V_VAN": [{name: "Châtelet"}, {name: "Saint-Michel"}, {name: "Montparnasse"}, {name: "Alésia"}, {name: "Vanves-Lycée Michelet"}]
-        };
-
-        function initMap() {
-            // On vérifie si l'élément existe avant d'initialiser
-            if (document.getElementById('map')) {
-                map = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.835, 2.320], 14);
-                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
-                
-                // Correction pour forcer le rendu de la map si elle est cachée au départ
-                setTimeout(() => { map.invalidateSize(); }, 500);
-            }
-        }
-
-        function initPeer() {
-            peer = new Peer(`BUS-58-P${POL}`);
-            peer.on('open', () => {
-                document.getElementById('sync-status').innerText = "LIVE";
-                document.getElementById('sync-status').className = "bg-cyan-500/20 border border-cyan-500 text-cyan-500 px-3 py-2 rounded-xl text-[9px] font-black";
-                conn = peer.connect('IRIS-PCC-58-GLOBAL');
-                conn.on('data', (d) => {
-                    if(d.type === 'RETOURNEMENT') document.getElementById('modal-retournement').classList.remove('hidden');
-                    if(d.type === 'msg') {
-                        document.getElementById('msg-content').innerText = d.content;
-                        document.getElementById('modal-msg').classList.remove('hidden');
-                    }
-                });
-            });
-        }
-
-        function basculerMission() {
-            currentMission = (currentMission === "V_CTL") ? "V_VAN" : "V_CTL";
-            currentIndex = 0;
-            document.getElementById('mission-label').innerText = currentMission === "V_CTL" ? "VERS CHÂTELET" : "VERS VANVES";
-            document.getElementById('mission-label').className = currentMission === "V_CTL" ? "text-cyan-400 font-black uppercase text-xl italic" : "text-yellow-400 font-black uppercase text-xl italic";
-            document.getElementById('main-card').className = `ui-card p-6 mb-4 flex flex-col items-center justify-center flex-1 ${currentMission === "V_CTL" ? 'mission-ctl' : 'mission-van'}`;
-            updateDisplay();
-        }
-
-        function updateDisplay() {
-            document.getElementById('display-station').innerText = DATA[currentMission][currentIndex].name;
-        }
-
-        document.getElementById('display-station').onclick = () => {
-            currentIndex = (currentIndex + 1) % DATA[currentMission].length;
-            updateDisplay();
-        };
-
-        function ack(id) { document.getElementById(id).classList.add('hidden'); }
-
-        window.onload = () => {
-            initMap();
-            updateDisplay();
-            initPeer();
-
-            if ("geolocation" in navigator) {
-                navigator.geolocation.watchPosition((pos) => {
-                    const s = Math.round((pos.coords.speed || 0) * 3.6);
-                    document.getElementById('speed').innerText = s.toString().padStart(2, '0');
-                    document.getElementById('gps-status').className = "w-4 h-4 rounded-full bg-green-500 shadow-[0_0_10px_green]";
-                    if(conn && conn.open) conn.send({type:'pos', lat:pos.coords.latitude, lon:pos.coords.longitude, pol:POL});
-                    if(map) map.panTo([pos.coords.latitude, pos.coords.longitude]);
-                }, null, { enableHighAccuracy: true });
-            }
-        };
-    </script>
-</body>
-</html>
+        <div class="bg-zinc-900 border-t-8 border-cyan-500 p-

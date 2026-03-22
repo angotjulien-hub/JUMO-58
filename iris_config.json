@@ -1,29 +1,19 @@
 {
-  "system_info": {
-    "last_update": "2026-02-09T22:43:00Z",
-    "status": "OPERATIONAL"
+  "line": "58",
+  "name": "Châtelet - Vanves Michelet",
+  "thresholds": {
+    "critical_health": 0.90,
+    "warning_delay": 300,
+    "nominal_interval": 600
   },
-  "fleet_status": [
-    {
-      "id": "BUS-5801",
-      "tv": "95",
-      "lat": 48.8312,
-      "lon": 2.3215,
-      "last_ping": "10s ago"
-    },
-    {
-      "id": "BUS-5802",
-      "tv": "96",
-      "lat": 48.8405,
-      "lon": 2.3320,
-      "last_ping": "2s ago"
-    },
-    {
-      "id": "BUS-5803",
-      "tv": "97",
-      "lat": 48.8250,
-      "lon": 2.3190,
-      "last_ping": "58s ago"
-    }
-  ]
+  "points_retournement": [
+    {"id": "ODON", "name": "Odéon", "lat": 48.8519, "lon": 2.3387},
+    {"id": "FLRS", "name": "Fleurus", "lat": 48.8475, "lon": 2.3301},
+    {"id": "PTVN", "name": "Porte de Vanves", "lat": 48.8302, "lon": 2.3065}
+  ],
+  "files": {
+    "weekday": "058_058LAV10_Semaine_01.csv",
+    "saturday": "058_058SAM30_Samedi_06.csv",
+    "sunday": "058_058DIM10_Dimanche_04.csv"
+  }
 }

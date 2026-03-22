@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IRIS PRO V5.9 - Ligne 58</title>
+    <title>IRIS PRO V6.0 - Ligne 58</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;900&family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
@@ -14,14 +13,10 @@
         .orbitron { font-family: 'Orbitron', sans-serif; }
         .glass { background: rgba(15, 15, 15, 0.95); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); }
         #map { height: 100%; width: 100%; filter: grayscale(1) invert(0.92) contrast(1.1); position: absolute; z-index: 1; }
-        
-        .drawer { position: fixed; inset: 0; background: rgba(0,0,0,0.97); transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); z-index: 999; }
+        .drawer { position: fixed; inset: 0; background: rgba(0,0,0,0.98); transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); z-index: 999; }
         .drawer.open { transform: translateY(0); }
-        
         .ui-layer { position: relative; z-index: 10; pointer-events: none; height: 100vh; display: flex; flex-direction: column; }
         .interactive { pointer-events: auto; }
-
-        .radar-label { color: #22d3ee; font-family: 'Orbitron'; font-weight: 900; font-size: 11px; text-shadow: 0 0 5px black; background: transparent; border: none; box-shadow: none; }
     </style>
 </head>
 <body>
@@ -30,29 +25,42 @@
 
     <div class="ui-layer p-5">
         <div class="flex justify-between items-start">
-            <div class="flex flex-col gap-4 interactive">
+            <div class="flex flex-col gap-3 interactive">
                 <div class="flex gap-3">
                     <div class="bg-[#FFD700] text-black px-6 py-2 text-4xl font-black rounded-2xl orbitron shadow-2xl">58</div>
                     <div class="flex flex-col">
-                        <span class="text-xl font-black italic uppercase leading-none">Châtelet</span>
-                        <span class="text-[8px] font-bold text-cyan-400 tracking-widest mt-1 uppercase">Radars Actifs</span>
+                        <span id="mission-id" class="text-xl font-black italic uppercase leading-none text-cyan-400">Marche --</span>
+                        <span class="text-[8px] font-bold text-zinc-500 tracking-widest mt-1 uppercase italic">IRIS Regulation Mode</span>
                     </div>
                 </div>
-                <button onclick="toggleDrawer('sig-menu')" class="bg-red-600 text-white font-black text-[10px] py-4 px-6 rounded-2xl shadow-lg uppercase tracking-widest">
-                    ⚠️ Signalisation
+                <button onclick="toggleDrawer('mission-picker')" class="bg-white/10 border border-white/20 text-white font-black text-[9px] py-2 px-4 rounded-xl uppercase tracking-widest active:scale-95 transition-all">
+                    Changer de Marche
                 </button>
             </div>
 
-            <button onclick="toggleDrawer('tm-menu')" class="glass px-6 py-4 rounded-[25px] border-b-4 border-cyan-500 interactive text-center">
-                <p class="orbitron text-[10px] font-black text-cyan-400">TABLEAU DE MARCHE</p>
-                <p id="clock" class="text-xs font-bold text-white mt-1">--:--:--</p>
-            </button>
+            <div class="flex flex-col items-end gap-2">
+                <button onclick="toggleDrawer('tm-menu')" class="glass px-6 py-4 rounded-[25px] border-b-4 border-cyan-500 interactive text-center">
+                    <p class="orbitron text-[10px] font-black text-cyan-400">TABLEAU DE MARCHE</p>
+                    <p id="clock" class="text-xs font-bold text-white mt-1">--:--:--</p>
+                </button>
+            </div>
         </div>
 
         <div class="flex-1 flex items-center justify-center">
-            <div onclick="nextStation()" class="glass w-full max-w-xl p-10 rounded-[50px] border-t-4 border-cyan-500 text-center interactive shadow-2xl active:scale-95 transition-all">
-                <span id="next-type" class="text-[10px] text-cyan-500 font-black uppercase tracking-[0.5em] mb-4 block italic">Radar de Régulation</span>
-                <h1 id="stop-name" class="text-4xl font-black italic uppercase tracking-tighter leading-tight mb-8 italic">Chargement...</h1>
+            <div onclick="nextStation()" class="glass w-full max-w-xl p-8 rounded-[50px] border-t-4 border-cyan-500 text-center interactive shadow-2xl active:scale-95 transition-all">
+                <div class="flex justify-between items-center mb-6 px-4">
+                    <div class="text-left">
+                        <p class="text-[8px] text-zinc-500 font-black uppercase tracking-widest">Radar actuel</p>
+                        <p id="radar-id-display" class="orbitron text-2xl text-white font-black">---</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-[8px] text-cyan-500 font-black uppercase tracking-widest">Heure de Départ</p>
+                        <p id="theoretical-time" class="orbitron text-3xl text-cyan-400 font-black">--:--</p>
+                    </div>
+                </div>
+                
+                <h1 id="stop-name" class="text-3xl font-black italic uppercase tracking-tighter leading-tight mb-8">SÉLECTIONNEZ UNE MARCHE</h1>
+                
                 <div class="w-full h-2 bg-white/5 rounded-full overflow-hidden">
                     <div id="progress" class="h-full bg-cyan-400 shadow-[0_0_15px_#22d3ee] transition-all duration-500" style="width: 0%"></div>
                 </div>
@@ -60,10 +68,9 @@
         </div>
 
         <div class="flex justify-between items-end">
-            <div class="glass px-6 py-4 rounded-3xl border-l-4 border-green-500 interactive">
-                <p class="text-[9px] font-black text-zinc-500 uppercase">EID / RÉGUL</p>
-                <p class="text-2xl font-black text-green-500 orbitron italic">+01' 25"</p>
-            </div>
+            <button onclick="toggleDrawer('sig-menu')" class="bg-red-600 text-white font-black text-xs py-5 px-8 rounded-3xl shadow-lg uppercase interactive active:scale-95">
+                ⚠️ Signaler
+            </button>
             
             <div class="glass p-8 rounded-[45px] text-center min-w-[150px] interactive">
                 <span id="speed" class="text-6xl font-black orbitron italic leading-none">00</span>
@@ -72,80 +79,90 @@
         </div>
     </div>
 
-    <div id="tm-menu" class="drawer flex flex-col p-8">
-        <div class="w-20 h-2 bg-zinc-800 rounded-full mx-auto mb-10 interactive" onclick="toggleDrawer('tm-menu')"></div>
-        <div class="px-4">
-            <h2 class="text-3xl font-black orbitron text-cyan-400 italic mb-10 uppercase">Points de Contrôle</h2>
-            <div id="tm-list" class="space-y-4 overflow-y-auto max-h-[65vh] pr-4"></div>
+    <div id="mission-picker" class="drawer flex flex-col p-8">
+        <div class="w-20 h-2 bg-zinc-800 rounded-full mx-auto mb-10 interactive" onclick="toggleDrawer('mission-picker')"></div>
+        <h2 class="text-3xl font-black orbitron text-white italic mb-8 uppercase text-center">Sélectionner votre Marche</h2>
+        <div class="grid grid-cols-1 gap-3 overflow-y-auto pr-2 interactive">
+            <button onclick="selectMission('44454788', 1)" class="glass p-6 rounded-3xl border-white/10 text-left">
+                <p class="orbitron text-cyan-400 font-bold">TV 44454788 (Agent 1)</p>
+                <p class="text-xs text-zinc-500">Départ CTL : 07:00 | Arrivée VM : 07:33</p>
+            </button>
+            <button onclick="selectMission('44454752', 9)" class="glass p-6 rounded-3xl border-white/10 text-left">
+                <p class="orbitron text-cyan-400 font-bold">TV 44454752 (Agent 9)</p>
+                <p class="text-xs text-zinc-500">Départ CTL : 22:15 | Arrivée VM : 22:55</p>
+            </button>
+            <button onclick="toggleDrawer('mission-picker')" class="p-6 text-zinc-500 font-bold uppercase text-center">Annuler</button>
         </div>
     </div>
 
-    <div id="sig-menu" class="drawer flex flex-col p-8">
-        <div class="w-20 h-2 bg-zinc-800 rounded-full mx-auto mb-10 interactive" onclick="toggleDrawer('sig-menu')"></div>
-        <h2 class="text-4xl font-black orbitron text-red-500 italic text-center mb-10 uppercase">Signalisation</h2>
-        <div class="grid grid-cols-2 gap-4 flex-1">
-             <button onclick="sendSig('INCIDENT')" class="glass p-8 rounded-[35px] border-red-500/30 text-red-500 font-black uppercase text-xs interactive">🚨 Incident</button>
-             <button onclick="sendSig('TRAFIC')" class="glass p-8 rounded-[35px] border-yellow-500/30 text-yellow-500 font-black uppercase text-xs interactive">🚧 Trafic</button>
-             <button onclick="sendSig('ACCIDENT')" class="glass p-8 rounded-[35px] border-orange-500/30 text-orange-500 font-black uppercase text-xs interactive">🚗 Accident</button>
-             <button onclick="toggleDrawer('sig-menu')" class="glass p-8 rounded-[35px] border-white/10 text-white font-black uppercase text-xs interactive">Annuler</button>
+    <div id="tm-menu" class="drawer flex flex-col p-8">
+        <div class="w-20 h-2 bg-zinc-800 rounded-full mx-auto mb-10 interactive" onclick="toggleDrawer('tm-menu')"></div>
+        <div class="px-4">
+            <h2 id="tm-title" class="text-2xl font-black orbitron text-cyan-400 italic mb-10 uppercase text-center">TABLEAU DE MARCHE</h2>
+            <div id="tm-list" class="space-y-4 overflow-y-auto max-h-[65vh] pr-4 no-scrollbar"></div>
         </div>
     </div>
 
     <script>
-        // Liste des Radars avec GA corrigé
-        const RADARS = [
-            { id: "CTL", name: "CHÂTELET", lat: 48.8584, lon: 2.3475 },
-            { id: "GA", name: "QUAI DES GRANDS AUGUSTINS", lat: 48.8546, lon: 2.3421 },
-            { id: "LUX", name: "LUXEMBOURG", lat: 48.8464, lon: 2.3371 },
-            { id: "18J", name: "18 JUIN 1940", lat: 48.8423, lon: 2.3232 },
-            { id: "AL", name: "ALÉSIA", lat: 48.8282, lon: 2.3271 },
-            { id: "CHN", name: "CHÂTILLON-MONTROUGE", lat: 48.8112, lon: 2.3012 },
-            { id: "VM", name: "VANVES-MICHELET", lat: 48.8211, lon: 2.2901 }
-        ];
+        // Données horaires pour la Marche 44454788 (Exemple DIMANCHE Aller)
+        const MISSIONS_DATA = {
+            "44454788": [
+                { id: "CTL", name: "CHÂTELET", time: "07:00", lat: 48.8584, lon: 2.3475 },
+                { id: "GA", name: "QUAI DES GRANDS AUGUSTINS", time: "07:00", lat: 48.8546, lon: 2.3421 },
+                { id: "LUX", name: "LUXEMBOURG", time: "07:04", lat: 48.8464, lon: 2.3371 },
+                { id: "18J", name: "18 JUIN 1940", time: "07:09", lat: 48.8423, lon: 2.3232 },
+                { id: "AL", name: "ALÉSIA", time: "07:14", lat: 48.8282, lon: 2.3271 },
+                { id: "CHN", name: "CHÂTILLON-MONTROUGE", time: "07:23", lat: 48.8112, lon: 2.3012 },
+                { id: "VM", name: "VANVES-MICHELET", time: "07:33", lat: 48.8211, lon: 2.2901 }
+            ]
+        };
 
-        let currentIndex = 0, map, userMarker;
+        let currentMission = null;
+        let currentIndex = 0;
+        let map, userMarker;
 
-        function initMap() {
-            map = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.84, 2.32], 13);
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
-
-            RADARS.forEach(radar => {
-                L.circleMarker([radar.lat, radar.lon], {
-                    radius: 8, color: '#22d3ee', weight: 2, fillOpacity: 0.6
-                }).addTo(map).bindTooltip(radar.id, {permanent: true, direction: 'top', className: 'radar-label', offset: [0, -10]});
-            });
-
-            userMarker = L.circleMarker([0,0], {radius: 10, color: '#fff', fillColor: '#22d3ee', fillOpacity: 1, weight: 4}).addTo(map);
+        function selectMission(tv, agent) {
+            currentMission = MISSIONS_DATA[tv];
+            currentIndex = 0;
+            document.getElementById('mission-id').innerText = `TV ${tv} / Agent ${agent}`;
+            toggleDrawer('mission-picker');
+            updateDisplay();
         }
 
-        function toggleDrawer(id) { document.getElementById(id).classList.toggle('open'); }
-
         function updateDisplay() {
-            const current = RADARS[currentIndex];
-            document.getElementById('stop-name').innerText = current.name;
-            document.getElementById('next-type').innerText = `Prochain Radar : ${current.id}`;
-            document.getElementById('progress').style.width = (currentIndex / (RADARS.length - 1)) * 100 + "%";
+            if(!currentMission) return;
+            const step = currentMission[currentIndex];
+            document.getElementById('stop-name').innerText = step.name;
+            document.getElementById('radar-id-display').innerText = step.id;
+            document.getElementById('theoretical-time').innerText = step.time;
+            document.getElementById('progress').style.width = (currentIndex / (currentMission.length - 1)) * 100 + "%";
             
             const list = document.getElementById('tm-list');
-            list.innerHTML = RADARS.map((r, i) => `
+            list.innerHTML = currentMission.map((r, i) => `
                 <div class="flex justify-between items-center py-5 border-b border-white/5 ${i < currentIndex ? 'opacity-20' : ''}">
                     <div>
                         <p class="text-[10px] text-cyan-500 orbitron font-bold">${r.id}</p>
                         <p class="text-xl font-black uppercase italic ${i === currentIndex ? 'text-cyan-400' : ''}">${r.name}</p>
                     </div>
+                    <p class="orbitron font-bold text-xl ${i === currentIndex ? 'text-cyan-400' : ''}">${r.time}</p>
                 </div>
             `).join('');
         }
 
         function nextStation() {
-            if(currentIndex < RADARS.length - 1) { currentIndex++; updateDisplay(); }
+            if(currentMission && currentIndex < currentMission.length - 1) { 
+                currentIndex++; 
+                updateDisplay(); 
+            }
         }
 
-        function sendSig(t) { alert("SIGNALEMENT " + t + " ENVOYÉ"); toggleDrawer('sig-menu'); }
+        function toggleDrawer(id) { document.getElementById(id).classList.toggle('open'); }
 
         window.onload = () => {
-            initMap();
-            updateDisplay();
+            map = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.84, 2.32], 13);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+            userMarker = L.circleMarker([0,0], {radius: 10, color: '#fff', fillColor: '#22d3ee', fillOpacity: 1, weight: 4}).addTo(map);
+            
             setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('fr-FR'); }, 1000);
             
             if ("geolocation" in navigator) {

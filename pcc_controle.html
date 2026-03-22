@@ -1,136 +1,169 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <title>IRIS 58 - FULL TACTICAL PCC</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <meta charset="utf-8">
+    <title>IRIS T-PCC | LIGNE 58</title>
     <style>
-        body { background: #010208; color: white; font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; display: flex; margin: 0; }
-        #map { flex: 1; filter: grayscale(1) invert(0.95) contrast(1.1) brightness(0.8) hue-rotate(195deg); }
-        .sidebar { width: 420px; background: #05070a; border-left: 1px solid #1e293b; display: flex; flex-direction: column; z-index: 1001; }
-        .orbitron { font-family: 'Orbitron', sans-serif; }
-        .mono { font-family: 'JetBrains Mono', monospace; }
-        .bus-label { background: rgba(15, 23, 42, 0.9); border: 1px solid #06b6d4; color: white; font-family: 'Orbitron'; font-size: 9px; border-radius: 4px; padding: 2px 6px; }
-        .alert-flash { animation: bg-red-flash 0.8s infinite alternate; }
-        @keyframes bg-red-flash { from { background: rgba(220, 38, 38, 0.1); } to { background: rgba(220, 38, 38, 0.4); } }
-        #tm-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 2000; align-items: center; justify-content: center; }
-        .tm-container { background: #0f172a; border: 1px solid #06b6d4; padding: 30px; border-radius: 20px; width: 80%; max-width: 900px; }
+        /* DESIGN GLOBAL IRIS */
+        body { background-color: #050505; color: #e0e0e0; font-family: 'Helvetica Neue', Arial, sans-serif; margin: 0; overflow: hidden; }
+        
+        /* BARRE DE STATUT SUPÉRIEURE */
+        .header { background: #111; padding: 10px 20px; border-bottom: 2px solid #333; display: flex; justify-content: space-between; align-items: center; }
+        .status-on { color: #4cd964; font-weight: bold; text-shadow: 0 0 5px #4cd964; }
+        #clock { font-family: monospace; font-size: 18px; color: #007aff; }
+        
+        /* AFFICHAGE CENTRAL */
+        #main-display { display: flex; height: calc(100vh - 60px); }
+        
+        /* CARTE ET RADAR */
+        #map-container { flex: 3; position: relative; background: radial-gradient(circle, #1a1a1a 0%, #050505 100%); border-right: 2px solid #333; overflow: hidden; }
+        .line-58 { position: absolute; width: 80%; height: 4px; background: #444; top: 50%; left: 10%; border-radius: 2px; }
+        .station { position: absolute; width: 12px; height: 12px; background: #fff; border-radius: 50%; top: calc(50% - 4px); border: 2px solid #007aff; }
+        .station-label { position: absolute; font-size: 10px; color: #888; top: calc(50% + 15px); transform: translateX(-50%); font-weight: bold; }
+
+        /* BUS ANIMÉS */
+        .bus-marker { 
+            position: absolute; width: 32px; height: 32px; 
+            background: #007aff; border: 2px solid #fff; border-radius: 6px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 11px; font-weight: bold; color: white;
+            transition: left 2s ease-in-out, top 2s ease-in-out; 
+            z-index: 10; box-shadow: 0 0 15px rgba(0, 122, 255, 0.6);
+        }
+
+        /* PANNEAU DE CONTRÔLE LATÉRAL */
+        .side-panel { flex: 1; background: #0a0a0a; padding: 20px; display: flex; flex-direction: column; gap: 20px; }
+        .card { background: #1c1c1e; border: 1px solid #333; padding: 15px; border-radius: 8px; }
+        .alert-box { 
+            background: #4a0000; border: 2px solid #ff3b30; color: #ff3b30; 
+            padding: 15px; border-radius: 8px; display: none; 
+            text-align: center; font-weight: bold; animation: blink 0.8s infinite; 
+        }
+        
+        .bus-item { padding: 12px; border-bottom: 1px solid #222; margin-bottom: 5px; border-radius: 4px; }
+        .eid-tag { color: #ff9500; font-weight: bold; font-size: 13px; display: block; margin-top: 4px; }
+
+        @keyframes blink { 50% { border-color: transparent; background: #220000; } }
     </style>
 </head>
-<body class="flex">
+<body>
 
-    <div id="tm-modal">
-        <div class="tm-container">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="orbitron text-xl text-cyan-400 italic">TABLEAU DE MARCHE LIVE</h2>
-                <button onclick="closeTM()" class="text-slate-500 hover:text-white font-bold text-xl">✕</button>
-            </div>
-            <div class="overflow-x-auto max-h-[500px]">
-                <table class="w-full text-[10px] mono text-left">
-                    <thead class="text-cyan-500 border-b border-white/10 uppercase sticky top-0 bg-[#0f172a]">
-                        <tr><th class="p-3">ID BUS</th><th class="p-3">HEURE</th><th class="p-3">LAT/LON</th><th class="p-3">VITESSE</th></tr>
-                    </thead>
-                    <tbody id="tm-table-body"></tbody>
-                </table>
-            </div>
+    <div class="header">
+        <div>
+            <span style="font-size: 22px; font-weight: bold; letter-spacing: 1px;">IRIS T-PCC</span> 
+            <span style="margin-left: 15px; color: #666;">GESTION LIGNE 58</span>
         </div>
+        <div id="clock">--:--:--</div>
+        <div>SYSTÈME : <span class="status-on">ACTIF</span></div>
     </div>
 
-    <div class="relative flex-1 flex flex-col">
-        <div id="map"></div>
-        <div id="collision-alert" class="hidden absolute top-6 left-1/2 -translate-x-1/2 z-[1000] bg-red-600 px-8 py-4 rounded-2xl orbitron font-black animate-bounce">
-            <p class="text-[12px] text-white">⚠️ ALERTE : COUPLAGE IMMINENT</p>
-        </div>
-        <div class="absolute bottom-6 left-6 z-[1000]">
-            <button onclick="openTM()" class="px-6 py-4 bg-cyan-600 rounded-2xl orbitron text-[10px] font-black hover:bg-cyan-500 transition-all text-white shadow-lg">
-                📊 LOGS RÉFÉRENTIEL (HISTORIQUE)
-            </button>
-        </div>
-    </div>
-
-    <div class="sidebar">
-        <div class="p-6 border-b border-white/5 bg-slate-900/20">
-            <h1 class="text-2xl font-black orbitron italic italic">IRIS <span class="text-cyan-500">T-PCC</span></h1>
-            <p class="text-[8px] text-slate-500 uppercase mt-1 tracking-widest">Poste de Commandement Centralisé</p>
+    <div id="main-display">
+        <div id="map-container">
+            <div class="line-58"></div>
+            <div class="station" style="left: 10%;"></div><div class="station-label" style="left: 10%;">VANVES</div>
+            <div class="station" style="left: 50%;"></div><div class="station-label" style="left: 50%;">MONTPARNASSE</div>
+            <div class="station" style="left: 90%;"></div><div class="station-label" style="left: 90%;">CHÂTELET</div>
+            
+            <div id="radar-layer"></div>
         </div>
 
-        <div class="flex-1 overflow-y-auto p-4 space-y-3">
-            <div class="flex justify-between items-center mb-2">
-                <p class="text-[9px] text-slate-600 font-black uppercase tracking-widest">Flotte Active</p>
-                <span class="text-[8px] mono text-slate-700" id="last-sync">--:--:--</span>
+        <div class="side-panel">
+            <div id="couplage-alert" class="alert-box">⚠️ ALERTE : COUPLAGE IMMINENT<br><small>ÉCART < 3 MIN</small></div>
+            
+            <div class="card">
+                <h3 style="margin: 0 0 10px 0; font-size: 14px; color: #007aff; text-transform: uppercase;">📡 Bus Détectés</h3>
+                <div id="bus-list">Initialisation du flux...</div>
             </div>
-            <div id="bus-cards-container" class="space-y-2"></div>
+
+            <div class="card">
+                <h3 style="margin: 0 0 10px 0; font-size: 14px; color: #ff9500; text-transform: uppercase;">📊 Régulation</h3>
+                <p style="font-size: 13px; margin: 5px 0;">Référentiel : 6 min</p>
+                <p style="font-size: 13px; margin: 5px 0;">Mode : Temps Réel</p>
+            </div>
         </div>
     </div>
 
     <script>
-        const map = L.map('map', {zoomControl: false}).setView([48.825, 2.325], 14);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
-
-        let busMarkers = {};
-
-        async function syncRadar() {
+        async function refreshIRIS() {
             try {
-                // APPEL DIRECT AU SERVEUR FLASK
-                const res = await fetch('http://127.0.0.1:5000/get_stats');
-                const data = await res.json();
+                // APPEL AU SERVEUR PYTHON
+                const response = await fetch('http://127.0.0.1:5000/get_stats');
+                const data = await response.json();
                 
-                document.getElementById('last-sync').innerText = data.last_update || "--:--:--";
-                const container = document.getElementById('bus-cards-container');
-                container.innerHTML = "";
-                let hazardFound = false;
+                const layer = document.getElementById('radar-layer');
+                const list = document.getElementById('bus-list');
+                const alertUI = document.getElementById('couplage-alert');
+                
+                document.getElementById('clock').innerText = new Date().toLocaleTimeString();
+                
+                // Tri des bus par longitude (pour calculer l'EID logiquement)
+                const sortedBus = data.bus_positions.sort((a, b) => a.lng - b.lng);
+                
+                list.innerHTML = '';
+                let isCoupling = false;
 
-                data.bus_positions.forEach(bus => {
-                    // Carte
-                    if (busMarkers[bus.id]) {
-                        busMarkers[bus.id].setLatLng([bus.lat, bus.lng]);
-                        busMarkers[bus.id].getTooltip().setContent(`BUS ${bus.id} | ${bus.eid} min`);
-                    } else {
-                        busMarkers[bus.id] = L.marker([bus.lat, bus.lng], {
-                            icon: L.divIcon({ html: `<div class="bg-cyan-500 w-4 h-4 rounded-full border-2 border-white shadow-[0_0_15px_cyan]"></div>` })
-                        }).addTo(map).bindTooltip(`BUS ${bus.id} | ${bus.eid} min`, {permanent: true, direction: 'top', className: 'bus-label'});
+                if (sortedBus.length === 0) {
+                    list.innerHTML = "<span style='color:#666'>Aucun bus en ligne.</span>";
+                    layer.innerHTML = '';
+                    alertUI.style.display = 'none';
+                    return;
+                }
+
+                sortedBus.forEach((bus, index) => {
+                    // CALCUL POSITION CARTE (Mapping Longitude -> % Écran)
+                    // Vanves (2.288) à gauche, Châtelet (2.345) à droite
+                    let xPercent = ((bus.lng - 2.288) / (2.345 - 2.288)) * 80 + 10;
+                    xPercent = Math.max(8, Math.min(92, xPercent)); 
+
+                    // MISE À JOUR DU MARQUEUR (POINT BLEU)
+                    let marker = document.getElementById('marker-' + bus.id);
+                    if (!marker) {
+                        marker = document.createElement('div');
+                        marker.id = 'marker-' + bus.id;
+                        marker.className = 'bus-marker';
+                        layer.appendChild(marker);
+                    }
+                    marker.style.left = xPercent + '%';
+                    marker.style.top = 'calc(50% - 16px)';
+                    marker.innerText = bus.id.slice(-4);
+
+                    // CALCUL DE L'EID (Intervalle avec le bus précédent)
+                    let eidInfo = "Tête de ligne";
+                    let itemColor = "transparent";
+
+                    if (index > 0) {
+                        const prevBus = sortedBus[index - 1];
+                        const gap = Math.abs(bus.lng - prevBus.lng);
+                        // Ratio : 0.01 de longitude = ~4 minutes
+                        const minutes = Math.round(gap * 400); 
+                        eidInfo = `EID : ${minutes} min`;
+                        
+                        // Déclenchement alerte si intervalle trop court
+                        if (minutes < 3) {
+                            isCoupling = true;
+                            itemColor = "rgba(255, 59, 48, 0.2)"; // Fond rouge léger
+                        }
                     }
 
-                    if (bus.intervalle < 3) hazardFound = true;
-
-                    // Sidebar
-                    container.innerHTML += `
-                        <div class="p-3 rounded-xl border ${bus.intervalle < 3 ? 'border-red-500/50 bg-red-500/5 alert-flash' : 'border-white/5 bg-white/5'}">
-                            <div class="flex justify-between items-start">
-                                <span class="orbitron text-xs font-black text-cyan-400">BUS ${bus.id}</span>
-                                <span class="mono text-[9px] text-green-500">+${bus.eid} min</span>
-                            </div>
+                    // AJOUT DANS LA LISTE LATÉRALE
+                    list.innerHTML += `
+                        <div class="bus-item" style="background: ${itemColor}">
+                            <strong style="color:#007aff;">BUS ${bus.id}</strong>
+                            <span class="eid-tag">${eidInfo}</span>
                         </div>`;
                 });
 
-                document.getElementById('collision-alert').style.display = hazardFound ? 'block' : 'none';
-            } catch (e) { console.log("Radar en attente de flux..."); }
+                // Affichage de l'alerte globale
+                alertUI.style.display = isCoupling ? 'block' : 'none';
+
+            } catch (err) {
+                document.getElementById('bus-list').innerHTML = "<span style='color:#ff3b30'>ERREUR LIAISON SERVEUR</span>";
+            }
         }
 
-        setInterval(syncRadar, 3000);
-        syncRadar();
-
-        function openTM() { document.getElementById('tm-modal').style.display = 'flex'; loadTMData(); }
-        function closeTM() { document.getElementById('tm-modal').style.display = 'none'; }
-
-        async function loadTMData() {
-            try {
-                // Utilisation de la route historique si tu l'as, sinon le JSON local
-                const res = await fetch('referentiel/flux_live_2026.json');
-                const data = await res.json();
-                const body = document.getElementById('tm-table-body');
-                body.innerHTML = data.reverse().slice(0, 15).map(log => `
-                    <tr class="border-b border-white/5">
-                        <td class="p-3 text-cyan-400 italic">${log.voiture}</td>
-                        <td class="p-3 text-slate-400">${log.timestamp.split('T')[1].split('.')[0]}</td>
-                        <td class="p-3 text-slate-500 mono">${log.lat.toFixed(3)}/${log.lon.toFixed(3)}</td>
-                        <td class="p-3 text-white font-bold">${log.vitesse} km/h</td>
-                    </tr>`).join('');
-            } catch (e) { console.error("Logs indisponibles"); }
-        }
+        // Rafraîchissement automatique toutes les 2 secondes
+        setInterval(refreshIRIS, 2000);
+        refreshIRIS();
     </script>
 </body>
 </html>

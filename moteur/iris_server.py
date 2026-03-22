@@ -5,14 +5,12 @@ import datetime
 import os
 
 app = Flask(__name__)
-CORS(app) # Autorise les requêtes entre le HTML et le Serveur
+CORS(app) 
 
 # Configuration des chemins
 LOG_FILE = "referentiel/flux_live_2026.json"
 STATS_FILE = "web_stats.json"
-AUDIT_FILE = "referentiel/audit_performance.csv"
 
-# Initialisation des dossiers
 if not os.path.exists('referentiel'):
     os.makedirs('referentiel')
 
@@ -30,7 +28,6 @@ def update_position():
     speed = data.get('speed', 0)
     is_manoeuvre = data.get('manoeuvre', False)
     
-    # Simulation d'un retard pour l'exemple (à lier à ton TM plus tard)
     retard_sec = 125 
     timestamp = datetime.datetime.now().isoformat()
     
@@ -45,7 +42,7 @@ def update_position():
         "alerte": calculer_alerte(retard_sec, is_manoeuvre)
     }
 
-    # 1. Mise à jour du Flux Live (Historique)
+    # 1. Historique (Flux Live)
     flux = []
     if os.path.exists(LOG_FILE):
         with open(LOG_FILE, "r") as f:
@@ -55,21 +52,19 @@ def update_position():
     with open(LOG_FILE, "w") as f:
         json.dump(flux[-50:], f, indent=4)
 
-    # 2. Mise à jour de web_stats.json pour le PCC et le Hub
-    # On gère ici une liste de bus actifs
+    # 2. Stats en temps réel
     stats = {"last_update": datetime.datetime.now().strftime("%H:%M:%S"), "bus_positions": []}
     if os.path.exists(STATS_FILE):
         with open(STATS_FILE, "r") as f:
             try: stats = json.load(f)
             except: pass
     
-    # Mise à jour ou ajout du bus dans la liste active
     found = False
     for i, b in enumerate(stats.get('bus_positions', [])):
         if b['id'] == pol:
             stats['bus_positions'][i] = {
                 "id": pol, "lat": lat, "lng": lon, 
-                "eid": round(retard_sec/60, 1), "intervalle": 5, # Intervalle fixe pour test
+                "eid": round(retard_sec/60, 1), "intervalle": 5,
                 "manoeuvre": is_manoeuvre
             }
             found = True
@@ -80,6 +75,14 @@ def update_position():
         json.dump(stats, f, indent=4)
 
     return jsonify({"status": "received", "bus": pol}), 200
+
+# Route pour que le PCC récupère les données
+@app.route('/get_stats', methods=['GET'])
+def get_stats():
+    if os.path.exists(STATS_FILE):
+        with open(STATS_FILE, "r") as f:
+            return jsonify(json.load(f))
+    return jsonify({"bus_positions": []})
 
 if __name__ == '__main__':
     print("🚀 SERVEUR IRIS 58 DÉMARRÉ SUR http://127.0.0.1:5000")

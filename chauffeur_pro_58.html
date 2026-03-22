@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IRIS PRO V5.8 - Ligne 58</title>
+    <title>IRIS PRO V5.9 - Ligne 58</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -13,21 +13,15 @@
         body { background: #000; color: white; font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; margin: 0; }
         .orbitron { font-family: 'Orbitron', sans-serif; }
         .glass { background: rgba(15, 15, 15, 0.95); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); }
-        
         #map { height: 100%; width: 100%; filter: grayscale(1) invert(0.92) contrast(1.1); position: absolute; z-index: 1; }
         
-        /* Priorité maximale pour les menus (z-index 999) */
-        .drawer { 
-            position: fixed; inset: 0; background: rgba(0,0,0,0.95);
-            transform: translateY(100%); transition: transform 0.4s ease-out; z-index: 999; 
-        }
+        .drawer { position: fixed; inset: 0; background: rgba(0,0,0,0.97); transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); z-index: 999; }
         .drawer.open { transform: translateY(0); }
         
-        .ui-layer { position: relative; z-index: 10; pointer-events: none; height: 100vh; display: flex; flex-col; }
+        .ui-layer { position: relative; z-index: 10; pointer-events: none; height: 100vh; display: flex; flex-direction: column; }
         .interactive { pointer-events: auto; }
-        
-        .btn-sig-grid { display: grid; grid-template-cols: 1fr 1fr; gap: 15px; padding: 20px; }
-        .sig-card { @apply flex flex-col items-center justify-center p-8 rounded-[32px] border-2 border-white/10 active:scale-95 transition-all; }
+
+        .radar-label { color: #22d3ee; font-family: 'Orbitron'; font-weight: 900; font-size: 11px; text-shadow: 0 0 5px black; background: transparent; border: none; box-shadow: none; }
     </style>
 </head>
 <body>
@@ -35,30 +29,29 @@
     <div id="map"></div>
 
     <div class="ui-layer p-5">
-        
         <div class="flex justify-between items-start">
             <div class="flex flex-col gap-4 interactive">
                 <div class="flex gap-3">
                     <div class="bg-[#FFD700] text-black px-6 py-2 text-4xl font-black rounded-2xl orbitron shadow-2xl">58</div>
                     <div class="flex flex-col">
                         <span class="text-xl font-black italic uppercase leading-none">Châtelet</span>
-                        <span id="status-text" class="text-[8px] font-bold text-cyan-400 tracking-widest mt-1">IRIS CONNECTÉ</span>
+                        <span class="text-[8px] font-bold text-cyan-400 tracking-widest mt-1 uppercase">Radars Actifs</span>
                     </div>
                 </div>
-                <button onclick="toggleDrawer('sig-menu')" class="bg-red-600 text-white font-black text-[10px] py-4 px-6 rounded-2xl shadow-lg shadow-red-600/20 uppercase tracking-widest">
+                <button onclick="toggleDrawer('sig-menu')" class="bg-red-600 text-white font-black text-[10px] py-4 px-6 rounded-2xl shadow-lg uppercase tracking-widest">
                     ⚠️ Signalisation
                 </button>
             </div>
 
-            <button onclick="toggleDrawer('tm-menu')" class="glass px-6 py-4 rounded-[25px] border-b-4 border-cyan-500 interactive">
+            <button onclick="toggleDrawer('tm-menu')" class="glass px-6 py-4 rounded-[25px] border-b-4 border-cyan-500 interactive text-center">
                 <p class="orbitron text-[10px] font-black text-cyan-400">TABLEAU DE MARCHE</p>
-                <p id="clock" class="text-xs font-bold text-white mt-1 text-center">--:--:--</p>
+                <p id="clock" class="text-xs font-bold text-white mt-1">--:--:--</p>
             </button>
         </div>
 
         <div class="flex-1 flex items-center justify-center">
             <div onclick="nextStation()" class="glass w-full max-w-xl p-10 rounded-[50px] border-t-4 border-cyan-500 text-center interactive shadow-2xl active:scale-95 transition-all">
-                <p class="text-[10px] text-zinc-500 font-black uppercase tracking-[0.6em] mb-4 italic">Prochain Arrêt</p>
+                <span id="next-type" class="text-[10px] text-cyan-500 font-black uppercase tracking-[0.5em] mb-4 block italic">Radar de Régulation</span>
                 <h1 id="stop-name" class="text-4xl font-black italic uppercase tracking-tighter leading-tight mb-8 italic">Chargement...</h1>
                 <div class="w-full h-2 bg-white/5 rounded-full overflow-hidden">
                     <div id="progress" class="h-full bg-cyan-400 shadow-[0_0_15px_#22d3ee] transition-all duration-500" style="width: 0%"></div>
@@ -69,4 +62,100 @@
         <div class="flex justify-between items-end">
             <div class="glass px-6 py-4 rounded-3xl border-l-4 border-green-500 interactive">
                 <p class="text-[9px] font-black text-zinc-500 uppercase">EID / RÉGUL</p>
-                <p class="text-2xl font-black
+                <p class="text-2xl font-black text-green-500 orbitron italic">+01' 25"</p>
+            </div>
+            
+            <div class="glass p-8 rounded-[45px] text-center min-w-[150px] interactive">
+                <span id="speed" class="text-6xl font-black orbitron italic leading-none">00</span>
+                <p class="text-[10px] text-zinc-500 font-black uppercase tracking-widest mt-2">km/h</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="tm-menu" class="drawer flex flex-col p-8">
+        <div class="w-20 h-2 bg-zinc-800 rounded-full mx-auto mb-10 interactive" onclick="toggleDrawer('tm-menu')"></div>
+        <div class="px-4">
+            <h2 class="text-3xl font-black orbitron text-cyan-400 italic mb-10 uppercase">Points de Contrôle</h2>
+            <div id="tm-list" class="space-y-4 overflow-y-auto max-h-[65vh] pr-4"></div>
+        </div>
+    </div>
+
+    <div id="sig-menu" class="drawer flex flex-col p-8">
+        <div class="w-20 h-2 bg-zinc-800 rounded-full mx-auto mb-10 interactive" onclick="toggleDrawer('sig-menu')"></div>
+        <h2 class="text-4xl font-black orbitron text-red-500 italic text-center mb-10 uppercase">Signalisation</h2>
+        <div class="grid grid-cols-2 gap-4 flex-1">
+             <button onclick="sendSig('INCIDENT')" class="glass p-8 rounded-[35px] border-red-500/30 text-red-500 font-black uppercase text-xs interactive">🚨 Incident</button>
+             <button onclick="sendSig('TRAFIC')" class="glass p-8 rounded-[35px] border-yellow-500/30 text-yellow-500 font-black uppercase text-xs interactive">🚧 Trafic</button>
+             <button onclick="sendSig('ACCIDENT')" class="glass p-8 rounded-[35px] border-orange-500/30 text-orange-500 font-black uppercase text-xs interactive">🚗 Accident</button>
+             <button onclick="toggleDrawer('sig-menu')" class="glass p-8 rounded-[35px] border-white/10 text-white font-black uppercase text-xs interactive">Annuler</button>
+        </div>
+    </div>
+
+    <script>
+        // Liste des Radars avec GA corrigé
+        const RADARS = [
+            { id: "CTL", name: "CHÂTELET", lat: 48.8584, lon: 2.3475 },
+            { id: "GA", name: "QUAI DES GRANDS AUGUSTINS", lat: 48.8546, lon: 2.3421 },
+            { id: "LUX", name: "LUXEMBOURG", lat: 48.8464, lon: 2.3371 },
+            { id: "18J", name: "18 JUIN 1940", lat: 48.8423, lon: 2.3232 },
+            { id: "AL", name: "ALÉSIA", lat: 48.8282, lon: 2.3271 },
+            { id: "CHN", name: "CHÂTILLON-MONTROUGE", lat: 48.8112, lon: 2.3012 },
+            { id: "VM", name: "VANVES-MICHELET", lat: 48.8211, lon: 2.2901 }
+        ];
+
+        let currentIndex = 0, map, userMarker;
+
+        function initMap() {
+            map = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.84, 2.32], 13);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+
+            RADARS.forEach(radar => {
+                L.circleMarker([radar.lat, radar.lon], {
+                    radius: 8, color: '#22d3ee', weight: 2, fillOpacity: 0.6
+                }).addTo(map).bindTooltip(radar.id, {permanent: true, direction: 'top', className: 'radar-label', offset: [0, -10]});
+            });
+
+            userMarker = L.circleMarker([0,0], {radius: 10, color: '#fff', fillColor: '#22d3ee', fillOpacity: 1, weight: 4}).addTo(map);
+        }
+
+        function toggleDrawer(id) { document.getElementById(id).classList.toggle('open'); }
+
+        function updateDisplay() {
+            const current = RADARS[currentIndex];
+            document.getElementById('stop-name').innerText = current.name;
+            document.getElementById('next-type').innerText = `Prochain Radar : ${current.id}`;
+            document.getElementById('progress').style.width = (currentIndex / (RADARS.length - 1)) * 100 + "%";
+            
+            const list = document.getElementById('tm-list');
+            list.innerHTML = RADARS.map((r, i) => `
+                <div class="flex justify-between items-center py-5 border-b border-white/5 ${i < currentIndex ? 'opacity-20' : ''}">
+                    <div>
+                        <p class="text-[10px] text-cyan-500 orbitron font-bold">${r.id}</p>
+                        <p class="text-xl font-black uppercase italic ${i === currentIndex ? 'text-cyan-400' : ''}">${r.name}</p>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function nextStation() {
+            if(currentIndex < RADARS.length - 1) { currentIndex++; updateDisplay(); }
+        }
+
+        function sendSig(t) { alert("SIGNALEMENT " + t + " ENVOYÉ"); toggleDrawer('sig-menu'); }
+
+        window.onload = () => {
+            initMap();
+            updateDisplay();
+            setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('fr-FR'); }, 1000);
+            
+            if ("geolocation" in navigator) {
+                navigator.geolocation.watchPosition((pos) => {
+                    document.getElementById('speed').innerText = Math.round((pos.coords.speed || 0) * 3.6).toString().padStart(2, '0');
+                    userMarker.setLatLng([pos.coords.latitude, pos.coords.longitude]);
+                    map.panTo([pos.coords.latitude, pos.coords.longitude]);
+                }, null, { enableHighAccuracy: true });
+            }
+        };
+    </script>
+</body>
+</html>

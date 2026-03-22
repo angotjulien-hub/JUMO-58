@@ -1,47 +1,103 @@
 import os
 import time
-import requests
 import json
+import pandas as pd # Utilisation de pandas pour la performance de calcul
 from datetime import datetime
 
-# Configuration
-TOKEN = os.getenv('COLLECTION_TOKEN')
-# L'URL sera celle de ton serveur de données ou du Hub PeerJS/Antigravity
-API_URL = "https://ton-hub-iris-api.com/v1/positions" 
+# --- CONFIGURATION IRIS ---
+CONFIG_PATH = "iris_config.json"
+MASTER_DATA_PATH = "iris_master_data.json"
+LOG_DIR = "rapports"
 
-def effectuer_la_collecte():
-    if not TOKEN:
-        print("Erreur : COLLECTION_TOKEN manquant.")
-        return
+class IrisCollector:
+    def __init__(self):
+        self.load_config()
+        self.load_master_data()
+        if not os.path.exists(LOG_DIR): os.makedirs(LOG_DIR)
 
-    print(f"[{time.strftime('%H:%M:%S')}] 🛰️ SCAN IRIS Ligne 58...")
+    def load_config(self):
+        with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
+            self.config = json.load(f)
 
-    try:
-        # 1. Appel à l'API pour récupérer la flotte
-        # r = requests.get(API_URL, headers={"Authorization": f"Bearer {TOKEN}"})
-        # data = r.json()
+    def load_master_data(self):
+        """Charge la base de données générée à partir de tes CSV"""
+        if os.path.exists(MASTER_DATA_PATH):
+            with open(MASTER_DATA_PATH, 'r', encoding='utf-8') as f:
+                self.master_data = json.load(f)
+        else:
+            print("⚠️ Base horaire manquante. Lancez le parser CSV d'abord.")
+            self.master_data = {}
+
+    def get_current_day_type(self):
+        """Détermine si on est en Semaine, Samedi ou Dimanche"""
+        dow = datetime.now().weekday()
+        if dow == 5: return "Samedi"
+        if dow == 6: return "Dimanche"
+        return "Semaine"
+
+    def calculer_eid(self, tv_id, stop_id, heure_reelle):
+        """Calcule l'écart entre le théorique (CSV) et le réel (GPS)"""
+        day_type = self.get_current_day_type()
+        try:
+            # Récupération de l'horaire théorique dans le dictionnaire master_data
+            mission = self.master_data.get(day_type, {}).get(str(tv_id))
+            if not mission: return None
+            
+            theo_str = next(s['t'] for s in mission['stops'] if s['id'] == stop_id)
+            fmt = "%H:%M:%S"
+            t_theo = datetime.strptime(theo_str, fmt)
+            t_reel = datetime.strptime(heure_reelle, fmt)
+            
+            diff = (t_reel - t_theo).total_seconds() / 60
+            return diff # Retourne l'écart en minutes
+        except Exception:
+            return 0
+
+    def scanner_flotte(self):
+        print(f"\n[{datetime.now().strftime('%H:%M:%S')}] 🛰️ SCAN IRIS LIGNE 58 - MODE {self.get_current_day_type().upper()}")
         
-        # Simulation pour le test
-        print(f"   > Unités détectées : 3")
-        print(f"   > Statut : Manœuvres en cours à Châtelet")
+        # Simulation de récupération des positions (Via API ou PeerJS)
+        # Dans la version réelle, on ferait : requests.get(API_URL)
+        flotte_active = [
+            {"pol": "8501", "tv": "44298328", "pos": [48.858, 2.341], "stop": "CTL"},
+            {"pol": "8544", "tv": "44298356", "pos": [48.830, 2.306], "stop": "VM"}
+        ]
 
-        # 2. Logique de Manœuvre (Consigne de ligne)
-        # On enregistre ici si le bus respecte ses 8 min de retournement
-        analyser_manoeuvres()
+        rapport = []
+        for bus in flotte_active:
+            h_now = datetime.now().strftime("%H:%M:%S")
+            eid = self.calculer_eid(bus['tv'], bus['stop'], h_now)
+            
+            status = "✅ NOMINAL" if eid and abs(eid) < 3 else "⚠️ DÉCALÉ"
+            print(f"   > Unité P{bus['pol']} | TV {bus['tv']} | EID: {eid:+.1f} min | {status}")
+            
+            rapport.append({
+                "timestamp": h_now,
+                "police": bus['pol'],
+                "tv": bus['tv'],
+                "eid": eid,
+                "status": status
+            })
+        
+        self.archiver_data(rapport)
 
-    except Exception as e:
-        print(f"   ⚠️ Erreur de liaison : {e}")
+    def archiver_data(self, data):
+        filename = f"{LOG_DIR}/regul_{datetime.now().strftime('%Y%m%d')}.json"
+        # On ajoute au fichier existant
+        current_logs = []
+        if os.path.exists(filename):
+            with open(filename, 'r') as f: current_logs = json.load(f)
+        
+        current_logs.extend(data)
+        with open(filename, 'w') as f:
+            json.dump(current_logs, f, indent=4)
 
-def analyser_manoeuvres():
-    # Ici, le script compare les positions reçues avec iris_config.json
-    # pour valider les phases de retournement.
-    pass
-
-# Cycle de surveillance (Fréquence de régulation)
-for i in range(5):
-    effectuer_la_collecte()
-    if i < 4:
-        # Pause de 60s entre chaque scan de régularité
-        time.sleep(60)
-
-print("\n✅ Cycle de régulation terminé. Données archivées dans /rapports.")
+# --- BOUCLE DE RÉGULATION ---
+if __name__ == "__main__":
+    iris = IrisCollector()
+    try:
+        while True: # Surveillance infinie
+            iris.scanner_flotte()
+            time.sleep(30) # Fréquence de scan de 30 secondes pour une précision RATP
+    except KeyboardInterrupt:
+        print("\n🛑 Système IRIS mis en veille.")

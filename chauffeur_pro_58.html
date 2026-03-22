@@ -2,82 +2,221 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>IRIS 58 - FULL TERMINAL CONTROL</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>IRIS CHAUFFEUR V8.0 - TACTIQUE</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Inter:wght@400;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
     <style>
-        body { background: #010208; color: white; font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; display: flex; margin: 0; }
-        #map { flex: 1; height: 100%; filter: grayscale(1) invert(0.95) contrast(1.1) brightness(0.8) hue-rotate(195deg); }
-        .sidebar { width: 450px; background: #05070a; border-left: 1px solid #1e293b; display: flex; flex-direction: column; z-index: 1001; }
+        body { background: #010208; color: white; font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; margin: 0; }
         .orbitron { font-family: 'Orbitron', sans-serif; }
         .mono { font-family: 'JetBrains Mono', monospace; }
+        #map { position: absolute; inset: 0; z-index: 1; filter: grayscale(1) invert(0.95) contrast(1.1) brightness(0.6) hue-rotate(195deg); }
+        .ui-layer { position: absolute; inset: 0; z-index: 100; pointer-events: none; display: flex; flex-direction: column; padding: 15px; }
+        .interactive { pointer-events: auto !important; }
+        .glass { background: rgba(5, 7, 10, 0.85); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.05); }
         
-        /* Marqueurs */
-        .bus-marker { width: 14px; height: 14px; background: #00f2ff; border: 2px solid #fff; border-radius: 2px; transform: rotate(45deg); box-shadow: 0 0 15px #00f2ff; }
-        .bus-off-route { background: #ff0055 !important; box-shadow: 0 0 20px #ff0055 !important; }
-        .glass-ui { background: rgba(5, 7, 10, 0.9); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.05); }
-        
-        /* Animation TM */
-        .tm-pulse { animation: pulse-blue 2s infinite; }
-        @keyframes pulse-blue { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
+        /* Alertes PCC */
+        #pcc-alert { display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 10000; background: #ff0055; padding: 25px; text-align: center; border-bottom: 5px solid white; animation: slideDown 0.5s ease; }
+        @keyframes slideDown { from { transform: translateY(-100%); } to { transform: translateY(0); } }
     </style>
 </head>
-<body class="flex">
+<body>
 
-    <div class="relative flex-1 flex flex-col">
-        <div id="map"></div>
-        
-        <div class="absolute top-6 left-6 z-[1000]">
-            <div class="glass-ui p-6 rounded-2xl w-85 border-l-4 border-cyan-600 shadow-2xl">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-[9px] font-black text-cyan-500 uppercase tracking-widest italic italic">PCC Tactique / L58</h3>
-                    <div id="status-glow" class="w-2 h-2 bg-cyan-500 rounded-full animate-pulse shadow-[0_0_10px_#00f2ff]"></div>
-                </div>
-                <div id="telemetry-feed" class="space-y-3"></div>
-            </div>
-        </div>
-
-        <div id="iris-alert-zone" class="absolute bottom-10 left-1/2 -translate-x-1/2 z-[1000] w-[550px] pointer-events-none flex flex-col gap-3"></div>
+    <div id="pcc-alert" onclick="this.style.display='none'">
+        <p class="orbitron text-white text-xs font-black uppercase tracking-[0.3em]">⚠️ CONSIGNE PCC ENTRANTE</p>
+        <h2 id="pcc-msg" class="text-2xl font-black italic uppercase mt-2">REBROUSSAGE IMMÉDIAT</h2>
     </div>
 
-    <div class="sidebar">
-        <div class="p-8 border-b border-white/5 bg-slate-900/20">
-            <h1 class="text-3xl font-black text-white italic orbitron tracking-tighter">IRIS <span class="text-cyan-500">T-PCC</span></h1>
-            <p class="text-[8px] font-bold text-slate-500 uppercase tracking-[0.4em] mt-3">Gestion de Ligne & Terminus</p>
-        </div>
+    <div id="map"></div>
 
-        <div class="grid grid-cols-2 gap-px bg-white/5 border-b border-white/5">
-            <div class="p-6 bg-[#05070a]">
-                <p class="text-[9px] text-slate-500 font-black uppercase mb-1">Prod. Ligne</p>
-                <p id="km-total" class="text-2xl font-black orbitron text-white">0.00</p>
-            </div>
-            <div class="p-6 bg-[#05070a]">
-                <p class="text-[9px] text-slate-500 font-black uppercase mb-1 text-red-500">Pertes EID</p>
-                <p id="km-lost" class="text-2xl font-black orbitron text-red-600">0.00</p>
-            </div>
-        </div>
-
-        <div class="p-6 flex-grow overflow-y-auto space-y-6">
-            <div class="space-y-4">
-                <select id="target-bus" class="w-full bg-[#0d1117] border border-white/10 p-4 rounded-xl text-xs font-bold text-cyan-400 outline-none focus:border-cyan-500">
-                    <option value="ALL">-- SÉLECTION UNITÉ --</option>
-                </select>
-                <textarea id="msg-text" placeholder="Entrer consigne régulation..." class="w-full bg-black border border-white/10 p-4 rounded-xl text-[11px] mono h-24 outline-none text-white"></textarea>
-                <div class="flex gap-2">
-                    <button onclick="executeOrder('RETOURNEMENT')" class="flex-1 bg-orange-600/10 text-orange-500 border border-orange-500/30 py-4 rounded-xl font-black text-[9px] uppercase hover:bg-orange-600 hover:text-white transition-all">Rebroussage Sécurisé</button>
-                    <button onclick="sendFreeMsg()" class="flex-1 bg-cyan-600 py-4 rounded-xl font-black text-[9px] uppercase text-black hover:bg-white transition-all">Transmettre</button>
+    <div class="ui-layer">
+        <div class="flex justify-between items-start">
+            <div class="glass p-4 rounded-2xl flex gap-4 items-center interactive border-l-4 border-cyan-500">
+                <div id="conn-status" class="w-3 h-3 bg-red-600 rounded-full animate-pulse"></div>
+                <div>
+                    <p class="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none">ID UNITÉ : <span id="bus-id-display">...</span></p>
+                    <p id="txt-service" class="orbitron text-sm font-black text-cyan-400 mt-1 uppercase italic">IRIS_OFFLINE</p>
                 </div>
             </div>
-            <div id="bus-strips" class="space-y-2"></div>
+
+            <div class="flex flex-col items-end gap-2 interactive">
+                <div id="clock" class="orbitron text-xl font-bold bg-black/80 px-4 py-1 rounded-lg border border-white/10">00:00:00</div>
+                <button onclick="toggleMenu()" class="bg-cyan-600 text-black font-black text-[10px] px-6 py-2 rounded-xl uppercase tracking-widest shadow-lg shadow-cyan-500/20">Missions</button>
+            </div>
         </div>
 
-        <div class="p-4 bg-black border-t border-white/5">
-            <div id="logs" class="font-mono text-[9px] text-slate-800 h-24 overflow-y-auto"></div>
+        <div class="flex-1 flex flex-col justify-center items-center">
+            <div id="eid-box" class="glass px-10 py-6 rounded-[40px] text-center mb-4 interactive active:scale-95 transition-all">
+                <p class="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] mb-1">EID TEMPS RÉEL</p>
+                <h1 id="eid-val" class="text-6xl font-black orbitron text-green-500">+00'00"</h1>
+            </div>
+            
+            <div class="glass p-6 rounded-3xl w-full max-w-sm border-t-2 border-white/10 interactive">
+                <div class="flex justify-between items-center">
+                    <div class="text-left">
+                        <p class="text-[8px] font-bold text-cyan-500 uppercase tracking-widest">Radar Suivant</p>
+                        <p id="next-stop-name" class="text-xl font-black italic uppercase text-white leading-none mt-1">SÉLECTIONNEZ MISSION</p>
+                    </div>
+                    <p id="next-stop-time" class="orbitron text-2xl font-black text-white">--:--</p>
+                </div>
+            </div>
         </div>
+
+        <div class="flex justify-between items-end">
+            <div class="glass p-6 rounded-[30px] border-l-4 border-white/10 interactive">
+                <p class="text-[8px] font-bold text-slate-500 uppercase mb-1">TEMPS MORT (TM)</p>
+                <p id="tm-val" class="orbitron text-xl font-black text-blue-400">0:00</p>
+            </div>
+
+            <div class="flex items-center gap-4 interactive">
+                <div class="text-right">
+                    <p class="text-[8px] font-black text-slate-500 uppercase">Vitesse</p>
+                    <span id="speed-val" class="text-6xl font-black orbitron italic leading-none">00</span>
+                </div>
+                <span class="text-xs font-black text-zinc-600 orbitron">KM/H</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="menu-side" class="fixed inset-0 bg-black/95 z-[500] transform translate-y-full transition-transform duration-500 p-8 flex flex-col">
+        <h2 class="orbitron text-2xl font-black italic text-cyan-500 mb-8 border-b border-cyan-500/30 pb-4">TABLEAU DE RÉGULATION (58)</h2>
+        <div id="mission-list" class="space-y-3 overflow-y-auto flex-1"></div>
+        <button onclick="toggleMenu()" class="mt-6 w-full py-6 bg-white/5 rounded-3xl orbitron font-black text-sm uppercase text-slate-400">Retour Cockpit</button>
     </div>
 
     <script>
-        let map, fleet = {};
+        const TERMINUS = { "CTL": [48.8585, 2.3412], "VM": [48.8210, 2.2985] };
+        
+        // Simule les données extraites de tes CSV
+        const SERVICE_DATA = {
+            "44454788": { agent: "1", stops: [
+                {id: "CTL", name: "CHÂTELET", time: "07:00:00"},
+                {id: "GA", name: "QUAI AUGUSTINS", time: "07:00:00"},
+                {id: "LUX", name: "LUXEMBOURG", time: "07:04:00"},
+                {id: "VM", name: "VANVES MICHELET", time: "07:33:00"}
+            ]}
+        };
+
+        let map, userMarker, peer, conn, currentBusId, currentMission = null, currentIdx = 0;
+        let tmSeconds = 0, isAtTerminus = false;
+
+        function init() {
+            // ID Bus aléatoire (P01 à P99) pour la liaison PCC
+            currentBusId = Math.floor(Math.random() * 99) + 1;
+            document.getElementById('bus-id-display').innerText = currentBusId.toString().padStart(2, '0');
+
+            map = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.8350, 2.3200], 14);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+            userMarker = L.circleMarker([0,0], {radius: 8, color: '#fff', fillColor: '#00f2ff', fillOpacity: 1, weight: 3}).addTo(map);
+
+            // Connexion PeerJS au PCC
+            peer = new Peer(`IRIS-BUS-${currentBusId}`);
+            peer.on('open', () => {
+                conn = peer.connect('IRIS-PCC-58-GLOBAL');
+                document.getElementById('conn-status').className = "w-3 h-3 bg-green-500 rounded-full shadow-[0_0_10px_#22c55e]";
+            });
+
+            peer.on('connection', c => {
+                c.on('data', data => {
+                    if(data.type === 'msg' || data.type === 'RETOURNEMENT_STRICT') {
+                        document.getElementById('pcc-alert').style.display = 'block';
+                        document.getElementById('pcc-msg').innerText = data.instruction || data.content;
+                        if(window.navigator.vibrate) window.navigator.vibrate([500, 200, 500]);
+                    }
+                });
+            });
+
+            // Liste des missions
+            const list = document.getElementById('mission-list');
+            Object.keys(SERVICE_DATA).forEach(id => {
+                list.innerHTML += `<button onclick="selectMission('${id}')" class="w-full glass p-6 rounded-3xl text-left border-white/5 active:border-cyan-500">
+                    <p class="orbitron text-cyan-400 font-black">MARCHE ${id} (AG ${SERVICE_DATA[id].agent})</p>
+                    <p class="text-[10px] text-slate-500 mt-1 uppercase">Départ ${SERVICE_DATA[id].stops[0].name} : ${SERVICE_DATA[id].stops[0].time}</p>
+                </button>`;
+            });
+
+            setInterval(coreTick, 1000);
+            startGeo();
+        }
+
+        function selectMission(id) {
+            currentMission = SERVICE_DATA[id];
+            currentIdx = 0;
+            document.getElementById('txt-service').innerText = `TV ${id} / AG ${currentMission.agent}`;
+            toggleMenu();
+            updateStopUI();
+        }
+
+        function coreTick() {
+            const now = new Date();
+            document.getElementById('clock').innerText = now.toLocaleTimeString('fr-FR');
+
+            // Calcul EID
+            if(currentMission) {
+                const targetStr = currentMission.stops[currentIdx].time;
+                const [h, m, s] = targetStr.split(':').map(Number);
+                const targetDate = new Date(); targetDate.setHours(h, m, s);
+                
+                const diffMs = now - targetDate;
+                const sign = diffMs >= 0 ? "+" : "-";
+                const totalSec = Math.floor(Math.abs(diffMs) / 1000);
+                const mins = Math.floor(totalSec / 60);
+                const secs = totalSec % 60;
+                
+                const eidVal = document.getElementById('eid-val');
+                eidVal.innerText = `${sign}${mins.toString().padStart(2, '0')}'${secs.toString().padStart(2, '0')}"`;
+                eidVal.className = `text-6xl font-black orbitron ${diffMs > 30000 ? 'text-red-500' : 'text-green-500'}`;
+            }
+
+            // Gestion du TM (Temps Mort)
+            if(isAtTerminus) {
+                tmSeconds++;
+                document.getElementById('tm-val').innerText = Math.floor(tmSeconds/60) + ":" + (tmSeconds%60).toString().padStart(2, '0');
+            }
+        }
+
+        function updateStopUI() {
+            const stop = currentMission.stops[currentIdx];
+            const isTerminus = (stop.id === "CTL" || stop.id === "VM");
+            document.getElementById('next-stop-name').innerText = stop.name;
+            document.getElementById('next-stop-name').style.color = isTerminus ? '#22c55e' : '#fff';
+            document.getElementById('next-stop-time').innerText = stop.time.substring(0, 5);
+        }
+
+        function startGeo() {
+            navigator.geolocation.watchPosition(p => {
+                const lat = p.coords.latitude;
+                const lon = p.coords.longitude;
+                document.getElementById('speed-val').innerText = Math.round((p.coords.speed || 0) * 3.6).toString().padStart(2, '0');
+                
+                userMarker.setLatLng([lat, lon]);
+                map.panTo([lat, lon]);
+
+                // Envoi position au PCC
+                if(conn && conn.open) {
+                    conn.send({ type: 'pos', pol: currentBusId, lat: lat, lon: lon });
+                }
+
+                // Détection auto Terminus
+                let nearTerm = false;
+                Object.values(TERMINUS).forEach(t => {
+                    if(map.distance([lat, lon], t) < 70) nearTerm = true;
+                });
+                if(nearTerm && !isAtTerminus) tmSeconds = 0;
+                isAtTerminus = nearTerm;
+
+            }, null, { enableHighAccuracy: true });
+        }
+
+        function toggleMenu() {
+            const m = document.getElementById('menu-side');
+            m.style.transform = m.style.transform === 'translateY(0%)' ? 'translateY(100%)' : 'translateY(0%)';
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>

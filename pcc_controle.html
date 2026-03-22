@@ -55,4 +55,210 @@
 
         <div class="grid grid-cols-2 gap-px bg-white/5 border-b border-white/5">
             <div class="p-6 bg-[#05070a]">
-                <p
+                <p class="text-[9px] text-slate-500 font-black uppercase mb-1 tracking-tighter italic italic">Production Km</p>
+                <p id="km-total" class="text-2xl font-black orbitron text-white">0.00</p>
+            </div>
+            <div class="p-6 bg-[#05070a]">
+                <p class="text-[9px] text-slate-500 font-black uppercase mb-1 tracking-tighter italic italic">Perte Offre (EID)</p>
+                <p id="km-lost" class="text-2xl font-black orbitron text-red-600">0.00</p>
+            </div>
+        </div>
+
+        <div class="p-6 flex-grow overflow-y-auto space-y-6">
+            <div class="space-y-4">
+                <select id="target-bus" class="w-full bg-[#0d1117] border border-white/10 p-4 rounded-xl text-xs font-bold text-cyan-400 outline-none focus:border-cyan-500">
+                    <option value="ALL">-- SÉLECTION UNITÉ --</option>
+                </select>
+                <textarea id="msg-text" placeholder="Entrer consigne régulation..." class="w-full bg-black border border-white/10 p-4 rounded-xl text-[11px] mono h-24 outline-none focus:border-cyan-500 transition-all text-white shadow-inner"></textarea>
+                
+                <div class="flex gap-2">
+                    <button onclick="executeOrder('RETOURNEMENT')" class="flex-1 bg-orange-600/10 text-orange-500 border border-orange-500/30 py-4 rounded-xl font-black text-[9px] uppercase hover:bg-orange-600 hover:text-white transition-all shadow-lg">Rebroussage Sécurisé</button>
+                    <button onclick="sendFreeMsg()" class="flex-1 bg-cyan-600 py-4 rounded-xl font-black text-[9px] uppercase text-black hover:bg-white transition-all shadow-lg shadow-cyan-600/20">Transmettre</button>
+                </div>
+            </div>
+
+            <div id="bus-strips" class="space-y-2"></div>
+        </div>
+
+        <div class="p-4 bg-black border-t border-white/5">
+            <button onclick="downloadIDFMReport()" class="w-full py-2 text-[8px] font-bold text-slate-600 hover:text-cyan-400 uppercase tracking-[0.2em] mb-4">Export Audit Régulation (.CSV)</button>
+            <div id="logs" class="font-mono text-[9px] text-slate-800 h-24 overflow-y-auto">
+                <div>[SYSTEM] IRIS CORE STABILIZED.</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let map, fleet = {};
+        let kmTotal = 0, kmPerdus = 0;
+
+        // 1. CONFIGURATION RÉELLE LIGNE 58
+        const LINE_58_PATH = [
+            [48.8210, 2.2985], [48.8302, 2.3065], [48.8390, 2.3218],
+            [48.8425, 2.3235], [48.8475, 2.3301], [48.8519, 2.3387],
+            [48.8548, 2.3435], [48.8560, 2.3460]
+        ];
+
+        // 2. POINTS DE RETOURNEMENT HOMOLOGUÉS (CONSIGNES DE LIGNE)
+        const SAFE_TURN_POINTS = [
+            { id: "PR-PV", name: "Porte de Vanves (18 Juin)", lat: 48.8302, lon: 2.3065 },
+            { id: "PR-RD", name: "Rue du Départ (Montparnasse)", lat: 48.8425, lon: 2.3235 },
+            { id: "PR-FL", name: "Fleurus (Luxembourg)", lat: 48.8475, lon: 2.3301 },
+            { id: "PR-OD", name: "Odéon (St-Germain)", lat: 48.8519, lon: 2.3387 },
+            { id: "PR-QA", name: "Quai des Grands Augustins", lat: 48.8548, lon: 2.3435 }
+        ];
+
+        function init() {
+            map = L.map('map', {zoomControl:false}).setView([48.8350, 2.3200], 14);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+
+            // Tracé Guide Neon
+            L.polyline(LINE_58_PATH, {color: '#00f2ff', weight: 3, opacity: 0.1, dashArray: '1, 10'}).addTo(map);
+
+            // Affichage des Safe Points
+            SAFE_TURN_POINTS.forEach(pr => {
+                L.circleMarker([pr.lat, pr.lon], {radius: 8, color: '#f59e0b', fillOpacity: 0.2, weight: 1.5}).addTo(map)
+                 .bindTooltip(`PR : ${pr.name}`, {direction: 'top', offset: [0, -10]});
+            });
+
+            const peer = new Peer('IRIS-PCC-58-GLOBAL');
+            peer.on('connection', conn => {
+                conn.on('data', d => { if(d.type === 'pos') processTactical(d, conn); });
+            });
+
+            setInterval(predictiveConflict, 4000);
+        }
+
+        function processTactical(d, conn) {
+            const id = d.pol;
+            const raw = [d.lat, d.lon];
+            const snapped = snapToLine(raw);
+            const isOff = map.distance(raw, snapped) > 40;
+
+            if(!fleet[id]) {
+                fleet[id] = {
+                    marker: L.marker(snapped, { icon: L.divIcon({html:`<div id="m-${id}" class="bus-marker"></div>`, className:''}) }).addTo(map),
+                    vector: L.polyline([], {color: '#00f2ff', weight: 1.5, className: 'vector-line'}).addTo(map),
+                    lastPos: snapped
+                };
+                updateSelect();
+            }
+
+            // KM Calculation
+            let dist = map.distance(fleet[id].lastPos, snapped) / 1000;
+            if(dist > 0.005) { kmTotal += dist; document.getElementById('km-total').innerText = kmTotal.toFixed(2); }
+
+            // UI Refresh
+            const mEl = document.getElementById('m-'+id);
+            if(mEl) isOff ? mEl.classList.add('bus-off-route') : mEl.classList.remove('bus-off-route');
+
+            // Vector Projection
+            const dx = snapped[0] - fleet[id].lastPos[0];
+            const dy = snapped[1] - fleet[id].lastPos[1];
+            const future = [snapped[0] + dx * 12, snapped[1] + dy * 12];
+
+            fleet[id].marker.setLatLng(snapped);
+            fleet[id].vector.setLatLngs([snapped, future]);
+            fleet[id].lastPos = snapped;
+            fleet[id].futurePos = future;
+            fleet[id].conn = conn;
+            fleet[id].offRoute = isOff;
+
+            updateHUD();
+        }
+
+        function snapToLine(latlng) {
+            let cl = latlng; let min = Infinity;
+            LINE_58_PATH.forEach(p => { let d = map.distance(latlng, p); if(d < min) { min = d; cl = p; } });
+            return min < 40 ? cl : latlng;
+        }
+
+        function executeOrder(type) {
+            const target = document.getElementById('target-bus').value;
+            if(target === "ALL") return;
+            const bus = fleet[target];
+
+            if(type === 'RETOURNEMENT') {
+                // Trouver le point sécurisé le plus proche
+                let bestPR = SAFE_TURN_POINTS[0]; let minD = Infinity;
+                SAFE_TURN_POINTS.forEach(pr => {
+                    let d = map.distance(bus.lastPos, [pr.lat, pr.lon]);
+                    if(d < minD) { minD = d; bestPR = pr; }
+                });
+
+                bus.conn.send({
+                    type: 'RETOURNEMENT_STRICT',
+                    instruction: `IRIS ORDER : Rebroussage autorisé au point sécurisé : ${bestPR.name}`,
+                    lat: bestPR.lat, lon: bestPR.lon
+                });
+                
+                // Pénalité km standard retournement
+                kmPerdus += 3.5; 
+                document.getElementById('km-lost').innerText = kmPerdus.toFixed(2);
+                addLog(`CRITICAL : P${target} redirigé vers ${bestPR.id}`, "text-orange-500 font-black");
+            } else {
+                bus.conn.send({type: type});
+            }
+        }
+
+        function predictiveConflict() {
+            const ids = Object.keys(fleet);
+            for(let i=0; i<ids.length; i++) {
+                for(let j=i+1; j<ids.length; j++) {
+                    const b1 = fleet[ids[i]], b2 = fleet[ids[j]];
+                    if(b1.futurePos && b2.futurePos && map.distance(b1.futurePos, b2.futurePos) < 250) {
+                        triggerAlert(ids[i], ids[j]);
+                    }
+                }
+            }
+        }
+
+        function triggerAlert(p1, p2) {
+            const zone = document.getElementById('iris-alert-zone');
+            if(document.getElementById(`alert-${p1}-${p2}`)) return;
+            const div = document.createElement('div');
+            div.id = `alert-${p1}-${p2}`;
+            div.className = "glass-ui p-6 rounded-2xl pointer-events-auto border-l-4 border-orange-600 flex justify-between items-center shadow-2xl";
+            div.innerHTML = `<div><h4 class="text-[10px] font-black text-white italic">COUPLAGE DÉTECTÉ P${p1}/P${p2}</h4><p class="text-[9px] text-slate-500 font-mono">Action : Espacement ou Retournement PR le plus proche.</p></div>
+                             <button onclick="applyOrder('${p2}', '${p1}-${p2}')" class="bg-orange-600 text-black px-4 py-2 rounded-lg font-black text-[9px] uppercase">Rebrousser</button>`;
+            zone.appendChild(div);
+        }
+
+        function applyOrder(bid, aid) { executeOrder('RETOURNEMENT', bid); document.getElementById(`alert-${aid}`).remove(); }
+
+        function sendFreeMsg() {
+            const txt = document.getElementById('msg-text').value; const t = document.getElementById('target-bus').value;
+            if(!txt) return;
+            if(t === "ALL") Object.values(fleet).forEach(b => b.conn.send({type:'msg', content:txt}));
+            else fleet[t].conn.send({type:'msg', content:txt});
+            document.getElementById('msg-text').value = '';
+            addLog(`TRANSMISSION : [${t}] Consigne envoyée.`, "text-cyan-500");
+        }
+
+        function updateHUD() {
+            const f = document.getElementById('telemetry-feed'); f.innerHTML = '';
+            Object.keys(fleet).forEach(id => {
+                f.innerHTML += `<div class="flex justify-between items-center text-[10px] mono border-b border-white/5 pb-2">
+                    <span class="text-white font-black italic">UNIT_P${id}</span>
+                    <span class="${fleet[id].offRoute ? 'text-red-500' : 'text-cyan-400'} text-[8px] font-black uppercase tracking-tighter">${fleet[id].offRoute ? 'HORS-ITINÉRAIRE' : 'NOMINAL'}</span>
+                </div>`;
+            });
+        }
+
+        function updateSelect() {
+            const s = document.getElementById('target-bus'); s.innerHTML = '<option value="ALL">-- DIFFUSION GÉNÉRALE --</option>';
+            Object.keys(fleet).forEach(id => { s.innerHTML += `<option value="${id}">BUS POLICE ${id}</option>`; });
+        }
+
+        function addLog(m, c='') { const l = document.getElementById('logs'); l.innerHTML = `<div class="${c}">[${new Date().toLocaleTimeString()}] ${m}</div>` + l.innerHTML; }
+
+        function downloadIDFMReport() {
+            const csv = `DATE;PROD_KM;LOSS_KM\n${new Date().toLocaleDateString()};${kmTotal.toFixed(2)};${kmPerdus.toFixed(2)}`;
+            const link = document.createElement('a'); link.href = 'data:text/csv;charset=utf-8,' + encodeURI(csv);
+            link.download = `IRIS_58_EXPLOITATION.csv`; link.click();
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>

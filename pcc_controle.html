@@ -14,26 +14,24 @@
         .orbitron { font-family: 'Orbitron', sans-serif; }
         .mono { font-family: 'JetBrains Mono', monospace; }
         .bus-label { background: rgba(15, 23, 42, 0.9); border: 1px solid #06b6d4; color: white; font-family: 'Orbitron'; font-size: 9px; border-radius: 4px; padding: 2px 6px; }
-        
-        #tm-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 2000; align-items: center; justify-content: center; }
-        .tm-container { background: #0f172a; border: 1px solid #06b6d4; padding: 30px; border-radius: 20px; width: 80%; max-width: 900px; }
-        
         .alert-flash { animation: bg-red-flash 0.8s infinite alternate; }
         @keyframes bg-red-flash { from { background: rgba(220, 38, 38, 0.1); } to { background: rgba(220, 38, 38, 0.4); } }
+        #tm-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 2000; align-items: center; justify-content: center; }
+        .tm-container { background: #0f172a; border: 1px solid #06b6d4; padding: 30px; border-radius: 20px; width: 80%; max-width: 900px; }
     </style>
 </head>
 <body class="flex">
 
     <div id="tm-modal">
-        <div class="tm-container shadow-[0_0_50px_rgba(6,182,212,0.2)]">
+        <div class="tm-container">
             <div class="flex justify-between items-center mb-6">
-                <h2 class="orbitron text-xl text-cyan-400 italic tracking-tighter">TABLEAU DE MARCHE LIVE (FLUX)</h2>
-                <button onclick="closeTM()" class="text-slate-500 hover:text-white transition-colors font-bold">✕ FERMER</button>
+                <h2 class="orbitron text-xl text-cyan-400 italic">TABLEAU DE MARCHE LIVE</h2>
+                <button onclick="closeTM()" class="text-slate-500 hover:text-white font-bold text-xl">✕</button>
             </div>
             <div class="overflow-x-auto max-h-[500px]">
                 <table class="w-full text-[10px] mono text-left">
                     <thead class="text-cyan-500 border-b border-white/10 uppercase sticky top-0 bg-[#0f172a]">
-                        <tr><th class="p-3">ID BUS</th><th class="p-3">HEURE</th><th class="p-3">LAT/LON</th><th class="p-3">EID (MIN)</th></tr>
+                        <tr><th class="p-3">ID BUS</th><th class="p-3">HEURE</th><th class="p-3">LAT/LON</th><th class="p-3">VITESSE</th></tr>
                     </thead>
                     <tbody id="tm-table-body"></tbody>
                 </table>
@@ -43,19 +41,11 @@
 
     <div class="relative flex-1 flex flex-col">
         <div id="map"></div>
-        
-        <div id="collision-alert" class="hidden absolute top-6 left-1/2 -translate-x-1/2 z-[1000] bg-red-600 px-8 py-4 rounded-2xl orbitron font-black animate-bounce shadow-[0_0_40px_rgba(239,68,68,0.6)] border-2 border-white/20">
-            <div class="flex items-center gap-4 text-white">
-                <span class="text-2xl">⚠️</span>
-                <div>
-                    <p class="text-[12px] leading-tight">ALERTE : COUPLAGE IMMINENT</p>
-                    <p class="text-[8px] opacity-80 uppercase tracking-widest">Intervalle critique sur la ligne 58</p>
-                </div>
-            </div>
+        <div id="collision-alert" class="hidden absolute top-6 left-1/2 -translate-x-1/2 z-[1000] bg-red-600 px-8 py-4 rounded-2xl orbitron font-black animate-bounce">
+            <p class="text-[12px] text-white">⚠️ ALERTE : COUPLAGE IMMINENT</p>
         </div>
-
-        <div class="absolute bottom-6 left-6 z-[1000] flex gap-3">
-            <button onclick="openTM()" class="px-6 py-4 bg-cyan-600/90 rounded-2xl orbitron text-[10px] font-black shadow-xl hover:bg-cyan-500 transition-all text-white border border-cyan-400/30">
+        <div class="absolute bottom-6 left-6 z-[1000]">
+            <button onclick="openTM()" class="px-6 py-4 bg-cyan-600 rounded-2xl orbitron text-[10px] font-black hover:bg-cyan-500 transition-all text-white shadow-lg">
                 📊 LOGS RÉFÉRENTIEL (HISTORIQUE)
             </button>
         </div>
@@ -63,21 +53,8 @@
 
     <div class="sidebar">
         <div class="p-6 border-b border-white/5 bg-slate-900/20">
-            <div class="flex justify-between items-start">
-                <div>
-                    <h1 class="text-2xl font-black orbitron italic">IRIS <span class="text-cyan-500">T-PCC</span></h1>
-                    <p class="text-[8px] text-slate-500 uppercase mt-1 tracking-widest">Poste de Commandement Centralisé</p>
-                </div>
-                <div id="status-indicator" class="bg-green-500/20 text-green-400 px-2 py-1 rounded text-[8px] font-bold border border-green-500/30">ONLINE</div>
-            </div>
-        </div>
-
-        <div class="p-4 border-b border-white/5 bg-black/40">
-            <p class="text-[9px] text-cyan-500 font-black uppercase mb-3 tracking-widest italic">📟 Régulation Ligne 58</p>
-            <div class="grid grid-cols-2 gap-2">
-                <button class="bg-orange-500/10 text-orange-400 border border-orange-500/20 py-3 rounded-lg text-[9px] font-black hover:bg-orange-500/20 transition-all">RALENTIR</button>
-                <button class="bg-green-500/10 text-green-400 border border-green-500/20 py-3 rounded-lg text-[9px] font-black hover:bg-green-500/20 transition-all">ACCÉLÉRER</button>
-            </div>
+            <h1 class="text-2xl font-black orbitron italic italic">IRIS <span class="text-cyan-500">T-PCC</span></h1>
+            <p class="text-[8px] text-slate-500 uppercase mt-1 tracking-widest">Poste de Commandement Centralisé</p>
         </div>
 
         <div class="flex-1 overflow-y-auto p-4 space-y-3">
@@ -85,8 +62,7 @@
                 <p class="text-[9px] text-slate-600 font-black uppercase tracking-widest">Flotte Active</p>
                 <span class="text-[8px] mono text-slate-700" id="last-sync">--:--:--</span>
             </div>
-            <div id="bus-cards-container" class="space-y-2">
-                </div>
+            <div id="bus-cards-container" class="space-y-2"></div>
         </div>
     </div>
 
@@ -98,8 +74,8 @@
 
         async function syncRadar() {
             try {
-                // CORRECTION : On pointe sur web_stats.json à la racine
-                const res = await fetch('web_stats.json?t=' + Date.now()); 
+                // APPEL DIRECT AU SERVEUR FLASK
+                const res = await fetch('http://127.0.0.1:5000/get_stats');
                 const data = await res.json();
                 
                 document.getElementById('last-sync').innerText = data.last_update || "--:--:--";
@@ -108,67 +84,52 @@
                 let hazardFound = false;
 
                 data.bus_positions.forEach(bus => {
-                    // 1. Mise à jour Carte
+                    // Carte
                     if (busMarkers[bus.id]) {
                         busMarkers[bus.id].setLatLng([bus.lat, bus.lng]);
-                        busMarkers[bus.id].setTooltipContent(`BUS ${bus.id} | ${bus.eid} min`);
+                        busMarkers[bus.id].getTooltip().setContent(`BUS ${bus.id} | ${bus.eid} min`);
                     } else {
                         busMarkers[bus.id] = L.marker([bus.lat, bus.lng], {
-                            icon: L.divIcon({
-                                className: '',
-                                html: `<div class="bg-cyan-500 w-4 h-4 rounded-full border-2 border-white shadow-[0_0_15px_cyan]"></div>`
-                            })
+                            icon: L.divIcon({ html: `<div class="bg-cyan-500 w-4 h-4 rounded-full border-2 border-white shadow-[0_0_15px_cyan]"></div>` })
                         }).addTo(map).bindTooltip(`BUS ${bus.id} | ${bus.eid} min`, {permanent: true, direction: 'top', className: 'bus-label'});
                     }
 
-                    // 2. Calcul Alerte (Intervalle < 3 min)
-                    const isDangerous = bus.intervalle < 3;
-                    if (isDangerous) hazardFound = true;
+                    if (bus.intervalle < 3) hazardFound = true;
 
-                    // 3. Carte Sidebar
+                    // Sidebar
                     container.innerHTML += `
-                        <div class="p-3 rounded-xl border ${isDangerous ? 'border-red-500/50 bg-red-500/5 alert-flash' : 'border-white/5 bg-white/5'} transition-all">
+                        <div class="p-3 rounded-xl border ${bus.intervalle < 3 ? 'border-red-500/50 bg-red-500/5 alert-flash' : 'border-white/5 bg-white/5'}">
                             <div class="flex justify-between items-start">
                                 <span class="orbitron text-xs font-black text-cyan-400">BUS ${bus.id}</span>
-                                <span class="mono text-[9px] ${bus.eid > 5 ? 'text-orange-500' : 'text-green-500'}">${bus.eid >= 0 ? '+' : ''}${bus.eid} min</span>
+                                <span class="mono text-[9px] text-green-500">+${bus.eid} min</span>
                             </div>
-                            <div class="mt-2 flex justify-between items-center">
-                                <span class="text-[8px] text-slate-500 uppercase font-bold">Interv: ${bus.intervalle}m</span>
-                                <span class="text-[8px] px-2 py-0.5 rounded bg-black/40 text-cyan-200 mono">L58</span>
-                            </div>
-                        </div>
-                    `;
+                        </div>`;
                 });
 
                 document.getElementById('collision-alert').style.display = hazardFound ? 'block' : 'none';
-                
-            } catch (e) { 
-                console.log("Attente du flux IRIS..."); 
-            }
+            } catch (e) { console.log("Radar en attente de flux..."); }
         }
 
-        // Rafraîchir toutes les 3 secondes
         setInterval(syncRadar, 3000);
         syncRadar();
 
-        // Modale TM (Historique)
         function openTM() { document.getElementById('tm-modal').style.display = 'flex'; loadTMData(); }
         function closeTM() { document.getElementById('tm-modal').style.display = 'none'; }
 
         async function loadTMData() {
             try {
+                // Utilisation de la route historique si tu l'as, sinon le JSON local
                 const res = await fetch('referentiel/flux_live_2026.json');
                 const data = await res.json();
                 const body = document.getElementById('tm-table-body');
                 body.innerHTML = data.reverse().slice(0, 15).map(log => `
-                    <tr class="border-b border-white/5 hover:bg-white/5">
-                        <td class="p-3 font-bold text-cyan-400 italic">${log.voiture}</td>
+                    <tr class="border-b border-white/5">
+                        <td class="p-3 text-cyan-400 italic">${log.voiture}</td>
                         <td class="p-3 text-slate-400">${log.timestamp.split('T')[1].split('.')[0]}</td>
-                        <td class="p-3 text-slate-500 mono">${log.lat.toFixed(4)} / ${log.lon.toFixed(4)}</td>
-                        <td class="p-3 text-white font-bold">${log.vitesse || 0} km/h</td>
-                    </tr>
-                `).join('');
-            } catch (e) { console.error("Erreur log:", e); }
+                        <td class="p-3 text-slate-500 mono">${log.lat.toFixed(3)}/${log.lon.toFixed(3)}</td>
+                        <td class="p-3 text-white font-bold">${log.vitesse} km/h</td>
+                    </tr>`).join('');
+            } catch (e) { console.error("Logs indisponibles"); }
         }
     </script>
 </body>

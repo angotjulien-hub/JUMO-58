@@ -6,23 +6,13 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
         body { background: #010208; color: white; font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; display: flex; margin: 0; }
         #map { flex: 1; height: 100%; filter: grayscale(1) invert(0.95) contrast(1.1) brightness(0.8) hue-rotate(195deg); }
         .sidebar { width: 450px; background: #05070a; border-left: 1px solid #1e293b; display: flex; flex-direction: column; z-index: 1001; }
         .orbitron { font-family: 'Orbitron', sans-serif; }
-        .mono { font-family: 'JetBrains Mono', monospace; }
-        
-        /* Marqueurs */
-        .bus-marker { width: 14px; height: 14px; background: #00f2ff; border: 2px solid #fff; border-radius: 2px; transform: rotate(45deg); box-shadow: 0 0 15px #00f2ff; }
-        .bus-off-route { background: #ff0055 !important; box-shadow: 0 0 20px #ff0055 !important; }
         .glass-ui { background: rgba(5, 7, 10, 0.9); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.05); }
-        
-        /* Animation TM */
-        .tm-pulse { animation: pulse-blue 2s infinite; }
-        @keyframes pulse-blue { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
     </style>
 </head>
 <body class="flex">
@@ -31,16 +21,17 @@
         <div id="map"></div>
         
         <div class="absolute top-6 left-6 z-[1000]">
-            <div class="glass-ui p-6 rounded-2xl w-85 border-l-4 border-cyan-600 shadow-2xl">
+            <div class="glass-ui p-6 rounded-2xl w-80 border-l-4 border-cyan-600 shadow-2xl">
                 <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-[9px] font-black text-cyan-500 uppercase tracking-widest italic italic">PCC Tactique / L58</h3>
-                    <div id="status-glow" class="w-2 h-2 bg-cyan-500 rounded-full animate-pulse shadow-[0_0_10px_#00f2ff]"></div>
+                    <h3 class="text-[9px] font-black text-cyan-500 uppercase tracking-widest italic">PCC Tactique / L58</h3>
+                    <div id="status-glow" class="w-2 h-2 bg-cyan-500 rounded-full animate-pulse"></div>
                 </div>
-                <div id="telemetry-feed" class="space-y-3"></div>
+                <div id="telemetry-feed" class="space-y-2 text-[10px] font-mono text-slate-400">
+                    <p>> Moteur IRIS: CONNECTÉ</p>
+                    <p>> Scan Intervalle: ACTIF</p>
+                </div>
             </div>
         </div>
-
-        <div id="iris-alert-zone" class="absolute bottom-10 left-1/2 -translate-x-1/2 z-[1000] w-[550px] pointer-events-none flex flex-col gap-3"></div>
     </div>
 
     <div class="sidebar">
@@ -51,159 +42,48 @@
 
         <div class="grid grid-cols-2 gap-px bg-white/5 border-b border-white/5">
             <div class="p-6 bg-[#05070a]">
-                <p class="text-[9px] text-slate-500 font-black uppercase mb-1">Prod. Ligne</p>
-                <p id="km-total" class="text-2xl font-black orbitron text-white">0.00</p>
+                <p class="text-[9px] text-slate-500 font-black uppercase mb-1">Missions Jour</p>
+                <p id="km-total" class="text-2xl font-black orbitron text-white">--</p>
             </div>
             <div class="p-6 bg-[#05070a]">
-                <p class="text-[9px] text-slate-500 font-black uppercase mb-1 text-red-500">Pertes EID</p>
-                <p id="km-lost" class="text-2xl font-black orbitron text-red-600">0.00</p>
+                <p class="text-[9px] text-slate-500 font-black uppercase mb-1 text-red-500">EID Moyen</p>
+                <p id="km-lost" class="text-2xl font-black orbitron text-red-600">0.0</p>
             </div>
         </div>
 
-        <div class="p-6 flex-grow overflow-y-auto space-y-6">
-            <div class="space-y-4">
-                <select id="target-bus" class="w-full bg-[#0d1117] border border-white/10 p-4 rounded-xl text-xs font-bold text-cyan-400 outline-none focus:border-cyan-500">
-                    <option value="ALL">-- SÉLECTION UNITÉ --</option>
-                </select>
-                <textarea id="msg-text" placeholder="Entrer consigne régulation..." class="w-full bg-black border border-white/10 p-4 rounded-xl text-[11px] mono h-24 outline-none text-white"></textarea>
-                <div class="flex gap-2">
-                    <button onclick="executeOrder('RETOURNEMENT')" class="flex-1 bg-orange-600/10 text-orange-500 border border-orange-500/30 py-4 rounded-xl font-black text-[9px] uppercase hover:bg-orange-600 hover:text-white transition-all">Rebroussage Sécurisé</button>
-                    <button onclick="sendFreeMsg()" class="flex-1 bg-cyan-600 py-4 rounded-xl font-black text-[9px] uppercase text-black hover:bg-white transition-all">Transmettre</button>
+        <div class="p-6 overflow-y-auto flex-1">
+            <h4 class="text-[10px] font-bold text-slate-600 uppercase mb-4 tracking-widest">Flux d'événements moteur</h4>
+            <div id="event-logs" class="space-y-4 text-[11px] font-mono">
                 </div>
-            </div>
-            <div id="bus-strips" class="space-y-2"></div>
-        </div>
-
-        <div class="p-4 bg-black border-t border-white/5">
-            <div id="logs" class="font-mono text-[9px] text-slate-800 h-24 overflow-y-auto"></div>
         </div>
     </div>
 
     <script>
-        let map, fleet = {};
-        let kmTotal = 0, kmPerdus = 0;
+        const map = L.map('map', {zoomControl: false}).setView([48.8566, 2.3522], 13);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
-        const TERMINUS = [
-            { id: "VM", name: "VANVES - MICHELET", lat: 48.8210, lon: 2.2985, color: "#0066ff" },
-            { id: "CTL", name: "CHÂTELET", lat: 48.8585, lon: 2.3412, color: "#0066ff" }
-        ];
-
-        const SAFE_TURN_POINTS = [
-            { id: "PR-PV", name: "Porte de Vanves (18 Juin)", lat: 48.8302, lon: 2.3065 },
-            { id: "PR-RD", name: "Rue du Départ", lat: 48.8425, lon: 2.3235 },
-            { id: "PR-FL", name: "Fleurus", lat: 48.8475, lon: 2.3301 },
-            { id: "PR-OD", name: "Odéon", lat: 48.8519, lon: 2.3387 },
-            { id: "PR-QA", name: "Quai des Grands Augustins", lat: 48.8548, lon: 2.3435 }
-        ];
-
-        function init() {
-            map = L.map('map', {zoomControl:false}).setView([48.8350, 2.3200], 14);
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
-
-            // Dessin des Terminus
-            TERMINUS.forEach(term => {
-                L.circle([term.lat, term.lon], { radius: 60, color: term.color, fillOpacity: 0.1, weight: 1, dashArray: '5,5' }).addTo(map);
-                const icon = L.divIcon({ html: `<div style="width:18px; height:18px; background:${term.color}; border:3px solid #fff; transform:rotate(45deg); box-shadow:0 0 15px ${term.color};"></div>`, className:'' });
-                L.marker([term.lat, term.lon], {icon}).addTo(map).bindTooltip(term.name, {permanent: true, direction:'right', className:'glass-ui text-white text-[9px] font-bold border-none'});
-            });
-
-            // Dessin des Safe Points
-            SAFE_TURN_POINTS.forEach(pr => {
-                L.circleMarker([pr.lat, pr.lon], {radius: 7, color: '#f59e0b', fillOpacity: 0.3, weight: 1}).addTo(map).bindTooltip(`PR: ${pr.name}`, {className:'text-[8px] glass-ui'});
-            });
-
-            const peer = new Peer('IRIS-PCC-58-GLOBAL');
-            peer.on('connection', conn => {
-                conn.on('data', d => { if(d.type === 'pos') processBus(d, conn); });
-            });
-
-            setInterval(updateTimers, 1000);
-        }
-
-        function processBus(d, conn) {
-            const id = d.pol;
-            if(!fleet[id]) {
-                fleet[id] = { marker: L.marker([d.lat, d.lon], { icon: L.divIcon({html:`<div id="m-${id}" class="bus-marker"></div>`, className:''}) }).addTo(map), lastPos: [d.lat, d.lon], stationTime: 0, atTerminus: false };
-                updateSelect();
-            }
-            
-            const currentPos = [d.lat, d.lon];
-            
-            // Détection Terminus pour le TM
-            let atTerm = false;
-            TERMINUS.forEach(t => {
-                if(map.distance(currentPos, [t.lat, t.lon]) < 70) atTerm = true;
-            });
-
-            if(atTerm && !fleet[id].atTerminus) {
-                fleet[id].stationTime = 0; // Reset TM à l'entrée
-                addLog(`P${id} ARRIVÉE TERMINUS`, "text-blue-400");
-            }
-            
-            fleet[id].atTerminus = atTerm;
-            fleet[id].marker.setLatLng(currentPos);
-            fleet[id].lastPos = currentPos;
-            fleet[id].conn = conn;
-
-            updateHUD();
-        }
-
-        function updateTimers() {
-            Object.keys(fleet).forEach(id => {
-                if(fleet[id].atTerminus) fleet[id].stationTime++;
-            });
-            updateHUD();
-        }
-
-        function updateHUD() {
-            const f = document.getElementById('telemetry-feed'); f.innerHTML = '';
-            Object.keys(fleet).forEach(id => {
-                const tm = fleet[id].atTerminus ? `<span class="tm-pulse text-blue-400">TM: ${formatTime(fleet[id].stationTime)}</span>` : '<span class="text-green-500">EN LIGNE</span>';
-                f.innerHTML += `
-                    <div class="flex justify-between items-center text-[10px] mono border-b border-white/5 pb-2">
-                        <span class="text-white font-black">UNIT_P${id}</span>
-                        ${tm}
-                    </div>`;
-            });
-        }
-
-        function formatTime(s) {
-            const m = Math.floor(s / 60); const rs = s % 60;
-            return `${m}:${rs < 10 ? '0' : ''}${rs}`;
-        }
-
-        function executeOrder(type) {
-            const target = document.getElementById('target-bus').value;
-            if(target === "ALL" || !fleet[target]) return;
-            
-            if(type === 'RETOURNEMENT') {
-                let best = SAFE_TURN_POINTS[0]; let min = Infinity;
-                SAFE_TURN_POINTS.forEach(pr => {
-                    let d = map.distance(fleet[target].lastPos, [pr.lat, pr.lon]);
-                    if(d < min) { min = d; best = pr; }
-                });
-                fleet[target].conn.send({ type: 'RETOURNEMENT_STRICT', instruction: `REBROUSSAGE : Point ${best.name}`, lat: best.lat, lon: best.lon });
-                kmPerdus += 3.5; document.getElementById('km-lost').innerText = kmPerdus.toFixed(2);
-                addLog(`ORDRE : P${target} vers ${best.id}`, "text-orange-500");
+        async function syncWithMoteur() {
+            try {
+                const response = await fetch('web_stats.json');
+                const data = await response.json();
+                
+                // Mise à jour des compteurs sidebar
+                document.getElementById('km-total').innerText = data.missions;
+                document.getElementById('km-lost').innerText = "+" + data.eid_moyen;
+                
+                // Ajout d'un log si changement
+                const logZone = document.getElementById('event-logs');
+                const newLog = document.createElement('div');
+                newLog.className = "text-cyan-500/80";
+                newLog.innerHTML = `[${data.last_update}] Sync OK - Ponctualité ${data.ponctualite}%`;
+                logZone.prepend(newLog);
+                
+            } catch (e) {
+                console.log("Attente du flux web_stats.json...");
             }
         }
 
-        function sendFreeMsg() {
-            const txt = document.getElementById('msg-text').value; const t = document.getElementById('target-bus').value;
-            if(!txt) return;
-            if(t === "ALL") Object.values(fleet).forEach(b => b.conn.send({type:'msg', content:txt}));
-            else fleet[t].conn.send({type:'msg', content:txt});
-            document.getElementById('msg-text').value = '';
-        }
-
-        function updateSelect() {
-            const s = document.getElementById('target-bus'); s.innerHTML = '<option value="ALL">-- SÉLECTION UNITÉ --</option>';
-            Object.keys(fleet).forEach(id => { s.innerHTML += `<option value="${id}">BUS POLICE ${id}</option>`; });
-        }
-
-        function addLog(m, c='') { const l = document.getElementById('logs'); l.innerHTML = `<div class="${c}">[${new Date().toLocaleTimeString()}] ${m}</div>` + l.innerHTML; }
-
-        window.onload = init;
+        setInterval(syncWithMoteur, 5000); // Sync toutes les 5 sec
     </script>
 </body>
 </html>

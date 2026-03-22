@@ -10,120 +10,131 @@
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=JetBrains+Mono&display=swap" rel="stylesheet">
     <style>
         body { background: #010208; color: white; font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; display: flex; margin: 0; }
-        #map { flex: 1; filter: grayscale(1) invert(0.95) contrast(1.1) brightness(0.8) hue-rotate(195deg); }
+        #map { flex: 1; filter: grayscale(1) invert(0.95) contrast(1.1) brightness(0.8) hue-rotate(195deg); transition: all 0.5s ease; }
         .sidebar { width: 400px; background: #05070a; border-left: 1px solid #1e293b; display: flex; flex-direction: column; z-index: 1001; }
         .orbitron { font-family: 'Orbitron', sans-serif; }
-        .mono { font-family: 'JetBrains Mono', monospace; }
         
-        /* Tooltip Tactique */
-        .bus-label { background: rgba(0,0,0,0.8); border: 1px solid #06b6d4; color: #06b6d4; font-family: 'Orbitron'; font-size: 9px; padding: 2px 6px; border-radius: 4px; }
+        /* Alerte Collision Visuelle */
+        .collision-danger { border: 2px solid #ef4444 !important; animation: flash-red 0.8s infinite; }
+        @keyframes flash-red { 
+            0% { box-shadow: 0 0 5px #ef4444; background: rgba(239, 68, 68, 0.1); }
+            50% { box-shadow: 0 0 25px #ef4444; background: rgba(239, 68, 68, 0.3); }
+            100% { box-shadow: 0 0 5px #ef4444; background: rgba(239, 68, 68, 0.1); }
+        }
+
+        #collision-overlay {
+            display: none;
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 2000;
+            background: #ef4444;
+            color: white;
+            padding: 10px 30px;
+            border-radius: 50px;
+            font-family: 'Orbitron';
+            font-weight: 900;
+            letter-spacing: 2px;
+            box-shadow: 0 0 30px rgba(239, 68, 68, 0.8);
+        }
     </style>
 </head>
 <body class="flex">
+
+    <div id="collision-overlay" class="animate-bounce">⚠️ ATTENTION COLLISION ⚠️</div>
 
     <div class="relative flex-1 flex flex-col">
         <div id="map"></div>
         
         <div class="absolute bottom-6 left-6 z-[1000] flex gap-3">
-            <button onclick="toggleGPX()" class="px-4 py-2 bg-slate-900/80 border border-white/10 rounded-xl text-[10px] font-bold orbitron hover:bg-cyan-500/20 transition-all">
-                📍 TRACÉ LIGNE (GPX)
-            </button>
-            <button onclick="showAnomalies()" class="px-4 py-2 bg-red-950/50 border border-red-500/30 rounded-xl text-[10px] font-bold orbitron text-red-400 hover:bg-red-500/40 transition-all">
-                ⚠️ ANOMALIES EID
-            </button>
+            <button onclick="toggleGPX()" class="px-4 py-2 bg-slate-900/80 border border-white/10 rounded-xl text-[10px] font-bold orbitron hover:bg-cyan-500/20">📍 TRACÉ LIGNE</button>
+            <div class="px-4 py-2 bg-black/60 border border-cyan-500/30 rounded-xl text-[10px] font-bold orbitron text-cyan-400">
+                MODE : RÉGULATION PAR INTERVALLE
+            </div>
         </div>
     </div>
 
     <div class="sidebar">
         <div class="p-6 border-b border-white/5">
-            <h1 class="text-2xl font-black orbitron italic italic">IRIS <span class="text-cyan-500">T-PCC</span></h1>
-            <div class="flex items-center gap-2 mt-2">
-                <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                <span class="text-[8px] font-bold text-slate-500 uppercase tracking-widest">Moteur de couplage actif</span>
-            </div>
+            <h1 class="text-2xl font-black orbitron italic">IRIS <span class="text-cyan-500">T-PCC</span></h1>
+            <p class="text-[8px] text-slate-500 uppercase mt-2 tracking-widest">Surveillance Ligne 58</p>
         </div>
 
-        <div class="grid grid-cols-2 gap-px bg-white/5 border-b border-white/5">
+        <div class="grid grid-cols-2 gap-px bg-white/5 border-b border-white/5 text-center">
             <div class="p-4 bg-[#05070a]">
-                <p class="text-[8px] text-slate-500 font-bold uppercase mb-1">Offre de transport</p>
-                <p id="kpi-prod" class="text-xl font-black orbitron text-white">0%</p>
+                <p class="text-[8px] text-slate-500 font-bold uppercase mb-1">Ponctualité</p>
+                <p id="kpi-ponct" class="text-xl font-black orbitron text-white">--%</p>
             </div>
             <div class="p-4 bg-[#05070a]">
-                <p class="text-[8px] text-slate-500 font-bold uppercase mb-1 text-cyan-500">Intervalle Moyen</p>
-                <p id="kpi-int" class="text-xl font-black orbitron text-cyan-500">-- min</p>
+                <p class="text-[8px] text-slate-500 font-bold uppercase mb-1">Intervalle</p>
+                <p id="kpi-int" class="text-xl font-black orbitron text-cyan-400">-- min</p>
             </div>
         </div>
 
         <div class="flex-1 overflow-y-auto p-4 space-y-3" id="fleet-container">
-            <p class="text-[9px] text-slate-600 font-black uppercase tracking-widest mb-2">Flotte active (L58)</p>
+            <p class="text-[9px] text-slate-600 font-black uppercase tracking-widest mb-2">État des rames</p>
             </div>
 
         <div class="p-4 bg-slate-900/40 border-t border-white/5">
-            <p class="text-[9px] text-slate-500 font-black uppercase mb-3">Ordre de régulation</p>
-            <div class="grid grid-cols-2 gap-2">
-                <button class="p-2 bg-orange-500/10 border border-orange-500/30 text-orange-500 text-[9px] font-bold rounded-lg hover:bg-orange-500/20">RETARDER DÉPART</button>
-                <button class="p-2 bg-cyan-500/10 border border-cyan-500/30 text-cyan-500 text-[9px] font-bold rounded-lg hover:bg-cyan-500/20">SUPPRESSION TRÈFLE</button>
-            </div>
+            <button onclick="resetCollision()" class="w-full py-3 bg-white/5 border border-white/10 text-[9px] font-bold orbitron rounded-xl hover:bg-white/10">ACQUITTER ALERTES</button>
         </div>
     </div>
 
     <script>
-        // 1. Initialisation Carte
         const map = L.map('map', {zoomControl: false}).setView([48.825, 2.325], 13);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
-        // 2. Chargement du tracé GPX (Ton fichier moteur/95 VM CTL.gpx)
         let gpxLayer;
         function toggleGPX() {
-            if(gpxLayer) {
-                map.removeLayer(gpxLayer);
-                gpxLayer = null;
-            } else {
+            if(gpxLayer) { map.removeLayer(gpxLayer); gpxLayer = null; }
+            else {
                 gpxLayer = new L.GPX("moteur/95 VM CTL.gpx", {
                     async: true,
                     marker_options: { startIconUrl: '', endIconUrl: '', shadowUrl: '' },
-                    polyline_options: { color: '#06b6d4', opacity: 0.5, weight: 3, lineCap: 'round' }
-                }).on('loaded', function(e) {
-                    map.fitBounds(e.target.getBounds());
+                    polyline_options: { color: '#06b6d4', opacity: 0.4, weight: 3 }
                 }).addTo(map);
             }
         }
 
-        // 3. Synchronisation avec le moteur de données
-        async function syncTacticalData() {
+        async function updatePCC() {
             try {
-                const response = await fetch('web_stats.json');
-                const data = await response.json();
+                const res = await fetch('web_stats.json');
+                const data = await res.json();
                 
-                // Update KPIs
-                document.getElementById('kpi-prod').innerText = data.ponctualite + "%";
-                document.getElementById('kpi-int').innerText = "10 min"; // À dynamiser
+                document.getElementById('kpi-ponct').innerText = data.ponctualite + "%";
+                document.getElementById('kpi-int').innerText = "08 min";
 
-                // Ici, on simulerait l'ajout des bus sur la carte selon leurs positions réelles
-                updateFleetUI(data);
+                // SIMULATION LOGIQUE COLLISION (Intervalle < 3 min)
+                const intervalleReel = 2; // Ce chiffre viendra de ton calcul d'intervalle
+                const container = document.getElementById('fleet-container');
+                const overlay = document.getElementById('collision-overlay');
 
-            } catch (e) { console.log("Attente flux tactical..."); }
+                if (intervalleReel < 3) {
+                    overlay.style.display = 'block';
+                    container.innerHTML = `
+                        <div class="p-4 rounded-xl collision-danger bg-red-500/10 border border-red-500/50">
+                            <div class="flex justify-between items-center">
+                                <span class="text-[10px] font-black orbitron text-red-500">ATTENTION COLLISION</span>
+                                <span class="text-[10px] font-bold text-white">TV 8356 / 8357</span>
+                            </div>
+                            <p class="text-[9px] text-slate-400 mt-2 uppercase">Intervalle critique : ${intervalleReel} min</p>
+                            <button class="mt-3 w-full py-2 bg-red-600 text-[8px] font-black rounded-lg">ORDONNER RALENTISSEMENT</button>
+                        </div>
+                    `;
+                } else {
+                    resetCollision();
+                }
+            } catch (e) { console.log("Moteur off..."); }
         }
 
-        function updateFleetUI(data) {
-            const container = document.getElementById('fleet-container');
-            // Exemple d'un bus calculé par le moteur
-            container.innerHTML = `
-                <div class="p-3 bg-white/5 border-l-2 border-cyan-500 rounded-lg flex justify-between items-center">
-                    <div>
-                        <p class="text-[10px] font-black orbitron text-white italic italic">TV 44298356</p>
-                        <p class="text-[8px] text-slate-500 uppercase font-bold mt-1">Dir: LUXEMBOURG</p>
-                    </div>
-                    <div class="text-right">
-                        <p class="text-xs font-black orbitron text-cyan-400">+02'</p>
-                        <p class="text-[7px] text-slate-600 uppercase">EID TACTIQUE</p>
-                    </div>
-                </div>
-            `;
+        function resetCollision() {
+            document.getElementById('collision-overlay').style.display = 'none';
+            // Retour au flux normal ici
         }
 
-        setInterval(syncTacticalData, 5000);
-        toggleGPX(); // Active le tracé par défaut
+        setInterval(updatePCC, 5000);
+        toggleGPX();
     </script>
 </body>
 </html>

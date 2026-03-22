@@ -81,3 +81,129 @@
 
     <script>
         let map, fleet = {};
+        let kmTotal = 0, kmPerdus = 0;
+
+        const TERMINUS = [
+            { id: "VM", name: "VANVES - MICHELET", lat: 48.8210, lon: 2.2985, color: "#0066ff" },
+            { id: "CTL", name: "CHÂTELET", lat: 48.8585, lon: 2.3412, color: "#0066ff" }
+        ];
+
+        const SAFE_TURN_POINTS = [
+            { id: "PR-PV", name: "Porte de Vanves (18 Juin)", lat: 48.8302, lon: 2.3065 },
+            { id: "PR-RD", name: "Rue du Départ", lat: 48.8425, lon: 2.3235 },
+            { id: "PR-FL", name: "Fleurus", lat: 48.8475, lon: 2.3301 },
+            { id: "PR-OD", name: "Odéon", lat: 48.8519, lon: 2.3387 },
+            { id: "PR-QA", name: "Quai des Grands Augustins", lat: 48.8548, lon: 2.3435 }
+        ];
+
+        function init() {
+            map = L.map('map', {zoomControl:false}).setView([48.8350, 2.3200], 14);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+
+            // Dessin des Terminus
+            TERMINUS.forEach(term => {
+                L.circle([term.lat, term.lon], { radius: 60, color: term.color, fillOpacity: 0.1, weight: 1, dashArray: '5,5' }).addTo(map);
+                const icon = L.divIcon({ html: `<div style="width:18px; height:18px; background:${term.color}; border:3px solid #fff; transform:rotate(45deg); box-shadow:0 0 15px ${term.color};"></div>`, className:'' });
+                L.marker([term.lat, term.lon], {icon}).addTo(map).bindTooltip(term.name, {permanent: true, direction:'right', className:'glass-ui text-white text-[9px] font-bold border-none'});
+            });
+
+            // Dessin des Safe Points
+            SAFE_TURN_POINTS.forEach(pr => {
+                L.circleMarker([pr.lat, pr.lon], {radius: 7, color: '#f59e0b', fillOpacity: 0.3, weight: 1}).addTo(map).bindTooltip(`PR: ${pr.name}`, {className:'text-[8px] glass-ui'});
+            });
+
+            const peer = new Peer('IRIS-PCC-58-GLOBAL');
+            peer.on('connection', conn => {
+                conn.on('data', d => { if(d.type === 'pos') processBus(d, conn); });
+            });
+
+            setInterval(updateTimers, 1000);
+        }
+
+        function processBus(d, conn) {
+            const id = d.pol;
+            if(!fleet[id]) {
+                fleet[id] = { marker: L.marker([d.lat, d.lon], { icon: L.divIcon({html:`<div id="m-${id}" class="bus-marker"></div>`, className:''}) }).addTo(map), lastPos: [d.lat, d.lon], stationTime: 0, atTerminus: false };
+                updateSelect();
+            }
+            
+            const currentPos = [d.lat, d.lon];
+            
+            // Détection Terminus pour le TM
+            let atTerm = false;
+            TERMINUS.forEach(t => {
+                if(map.distance(currentPos, [t.lat, t.lon]) < 70) atTerm = true;
+            });
+
+            if(atTerm && !fleet[id].atTerminus) {
+                fleet[id].stationTime = 0; // Reset TM à l'entrée
+                addLog(`P${id} ARRIVÉE TERMINUS`, "text-blue-400");
+            }
+            
+            fleet[id].atTerminus = atTerm;
+            fleet[id].marker.setLatLng(currentPos);
+            fleet[id].lastPos = currentPos;
+            fleet[id].conn = conn;
+
+            updateHUD();
+        }
+
+        function updateTimers() {
+            Object.keys(fleet).forEach(id => {
+                if(fleet[id].atTerminus) fleet[id].stationTime++;
+            });
+            updateHUD();
+        }
+
+        function updateHUD() {
+            const f = document.getElementById('telemetry-feed'); f.innerHTML = '';
+            Object.keys(fleet).forEach(id => {
+                const tm = fleet[id].atTerminus ? `<span class="tm-pulse text-blue-400">TM: ${formatTime(fleet[id].stationTime)}</span>` : '<span class="text-green-500">EN LIGNE</span>';
+                f.innerHTML += `
+                    <div class="flex justify-between items-center text-[10px] mono border-b border-white/5 pb-2">
+                        <span class="text-white font-black">UNIT_P${id}</span>
+                        ${tm}
+                    </div>`;
+            });
+        }
+
+        function formatTime(s) {
+            const m = Math.floor(s / 60); const rs = s % 60;
+            return `${m}:${rs < 10 ? '0' : ''}${rs}`;
+        }
+
+        function executeOrder(type) {
+            const target = document.getElementById('target-bus').value;
+            if(target === "ALL" || !fleet[target]) return;
+            
+            if(type === 'RETOURNEMENT') {
+                let best = SAFE_TURN_POINTS[0]; let min = Infinity;
+                SAFE_TURN_POINTS.forEach(pr => {
+                    let d = map.distance(fleet[target].lastPos, [pr.lat, pr.lon]);
+                    if(d < min) { min = d; best = pr; }
+                });
+                fleet[target].conn.send({ type: 'RETOURNEMENT_STRICT', instruction: `REBROUSSAGE : Point ${best.name}`, lat: best.lat, lon: best.lon });
+                kmPerdus += 3.5; document.getElementById('km-lost').innerText = kmPerdus.toFixed(2);
+                addLog(`ORDRE : P${target} vers ${best.id}`, "text-orange-500");
+            }
+        }
+
+        function sendFreeMsg() {
+            const txt = document.getElementById('msg-text').value; const t = document.getElementById('target-bus').value;
+            if(!txt) return;
+            if(t === "ALL") Object.values(fleet).forEach(b => b.conn.send({type:'msg', content:txt}));
+            else fleet[t].conn.send({type:'msg', content:txt});
+            document.getElementById('msg-text').value = '';
+        }
+
+        function updateSelect() {
+            const s = document.getElementById('target-bus'); s.innerHTML = '<option value="ALL">-- SÉLECTION UNITÉ --</option>';
+            Object.keys(fleet).forEach(id => { s.innerHTML += `<option value="${id}">BUS POLICE ${id}</option>`; });
+        }
+
+        function addLog(m, c='') { const l = document.getElementById('logs'); l.innerHTML = `<div class="${c}">[${new Date().toLocaleTimeString()}] ${m}</div>` + l.innerHTML; }
+
+        window.onload = init;
+    </script>
+</body>
+</html>

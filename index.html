@@ -24,8 +24,6 @@
         input:focus { box-shadow: 0 0 20px rgba(34, 211, 238, 0.2); background: rgba(0, 0, 0, 0.6) !important; }
         .btn-primary { background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
         .btn-primary:hover { box-shadow: 0 0 30px rgba(6, 182, 212, 0.4); transform: translateY(-2px); }
-        .status-pulse { animation: status-glow 2s infinite; }
-        @keyframes status-glow { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
     </style>
 </head>
 <body class="text-white flex items-center justify-center h-screen">
@@ -33,10 +31,68 @@
     <div class="bg-glow"></div>
     
     <div class="glass-panel p-10 rounded-[50px] w-full max-w-[440px] relative overflow-hidden m-4">
-        <div class="absolute -top-20 -right-20 w-40 h-40 bg-cyan-500/10 rounded-full blur-3xl"></div>
-        
         <header class="text-center mb-10">
             <div class="inline-block p-1 px-3 bg-cyan-500/10 border border-cyan-500/20 rounded-full mb-4">
                 <span class="text-[9px] font-black orbitron text-cyan-400 tracking-[0.3em] uppercase">Phase d'authentification</span>
             </div>
-            <h1 class="text-6xl font-black orbitron tracking-tighter text-white">
+            <h1 class="text-6xl font-black orbitron tracking-tighter text-white">IRIS 58</h1>
+            <p class="text-slate-400 text-sm mt-2">Accès restreint au réseau NEXUS</p>
+        </header>
+
+        <div class="space-y-4">
+            <div>
+                <label class="block text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2 ml-4">Identifiant</label>
+                <input type="text" id="username" class="w-full bg-slate-900/50 border border-white/5 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-cyan-500/50 transition-all" placeholder="ID Agent">
+            </div>
+            <div>
+                <label class="block text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2 ml-4">Clé d'accès</label>
+                <input type="password" id="password" class="w-full bg-slate-900/50 border border-white/5 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-cyan-500/50 transition-all" placeholder="••••••••">
+            </div>
+            
+            <button onclick="handleLogin()" class="btn-primary w-full py-5 rounded-2xl text-sm font-bold orbitron tracking-[0.2em] uppercase mt-4">
+                Initialiser Connexion
+            </button>
+        </div>
+
+        <div id="status-message" class="mt-6 text-center text-xs orbitron text-cyan-500/50">
+            Système en attente...
+        </div>
+    </div>
+
+    <script>
+        async function handleLogin() {
+            const user = document.getElementById('username').value;
+            const pass = document.getElementById('password').value;
+            const status = document.getElementById('status-message');
+
+            status.innerText = "Vérification en cours...";
+            status.classList.add('animate-pulse');
+
+            try {
+                // CONNEXION AU SERVEUR CLOUD
+                const response = await fetch('https://angot.pythonanywhere.com/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: user, password: pass })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    status.innerText = "Accès autorisé. Transfert...";
+                    setTimeout(() => {
+                        window.location.href = 'pcc_controle.html';
+                    }, 1000);
+                } else {
+                    status.innerText = "Erreur : " + (data.message || "Accès refusé");
+                    status.classList.remove('animate-pulse');
+                }
+            } catch (error) {
+                console.error(error);
+                status.innerText = "Serveur IRIS introuvable";
+                status.classList.remove('animate-pulse');
+            }
+        }
+    </script>
+</body>
+</html>

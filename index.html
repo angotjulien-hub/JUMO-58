@@ -7,11 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
-        body { 
-            font-family: 'Inter', sans-serif; 
-            background: #020617;
-            overflow: hidden;
-        }
+        body { font-family: 'Inter', sans-serif; background: #020617; overflow: hidden; }
 
         /* Background Animé */
         .bg-glow {
@@ -39,7 +35,6 @@
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
         }
 
-        /* Input focus effects */
         input:focus {
             box-shadow: 0 0 20px rgba(34, 211, 238, 0.2);
             background: rgba(0, 0, 0, 0.6) !important;
@@ -54,6 +49,9 @@
             box-shadow: 0 0 30px rgba(6, 182, 212, 0.4);
             transform: translateY(-2px);
         }
+
+        .status-pulse { animation: status-glow 2s infinite; }
+        @keyframes status-glow { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
     </style>
 </head>
 <body class="text-white flex items-center justify-center h-screen">
@@ -63,7 +61,7 @@
     <div class="glass-panel p-10 rounded-[50px] w-full max-w-[440px] relative overflow-hidden m-4">
         <div class="absolute -top-20 -right-20 w-40 h-40 bg-cyan-500/10 rounded-full blur-3xl"></div>
         
-        <header class="text-center mb-12">
+        <header class="text-center mb-10">
             <div class="inline-block p-1 px-3 bg-cyan-500/10 border border-cyan-500/20 rounded-full mb-4">
                 <span class="text-[9px] font-black orbitron text-cyan-400 tracking-[0.3em] uppercase">Phase d'authentification</span>
             </div>
@@ -71,7 +69,7 @@
             <p class="text-[10px] text-slate-500 font-bold mt-2 uppercase tracking-widest">Global Transit Management System</p>
         </header>
 
-        <div class="space-y-8">
+        <div class="space-y-6">
             <div class="space-y-4">
                 <div class="flex items-center gap-2 mb-2 px-2">
                     <div class="w-1.5 h-1.5 bg-cyan-500 rounded-full"></div>
@@ -84,42 +82,88 @@
                     
                     <div class="grid grid-cols-2 gap-3">
                         <input type="number" id="svc" placeholder="SERVICE" 
-                            class="w-full p-5 bg-black/40 border border-white/5 rounded-3xl text-white text-center font-black orbitron outline-none focus:border-cyan-500/50 transition-all placeholder:text-slate-700">
+                            class="w-full p-4 bg-black/40 border border-white/5 rounded-2xl text-white text-center font-black orbitron outline-none focus:border-cyan-500/50 transition-all placeholder:text-slate-700">
                         <input type="number" id="pol" placeholder="POLICE" 
-                            class="w-full p-5 bg-black/40 border border-white/5 rounded-3xl text-white text-center font-black orbitron outline-none focus:border-cyan-500/50 transition-all placeholder:text-slate-700">
+                            class="w-full p-4 bg-black/40 border border-white/5 rounded-2xl text-white text-center font-black orbitron outline-none focus:border-cyan-500/50 transition-all placeholder:text-slate-700">
                     </div>
 
                     <button onclick="goChauffeur()" 
-                        class="btn-primary w-full py-6 text-black font-black orbitron rounded-3xl text-sm tracking-widest uppercase">
+                        class="btn-primary w-full py-6 text-black font-black orbitron rounded-3xl text-sm tracking-widest uppercase shadow-lg">
                         Ouvrir Session SAEIV
                     </button>
                 </div>
             </div>
 
-            <div class="relative py-4">
+            <div class="relative py-2">
                 <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-white/5"></div></div>
                 <div class="relative flex justify-center text-[8px] font-black uppercase tracking-[0.5em] text-slate-600">
                     <span class="bg-[#0f172a] px-4">Administration</span>
                 </div>
             </div>
 
-            <button onclick="goPCC()" 
-                class="w-full py-4 bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 hover:border-white/20 font-black text-[10px] uppercase tracking-[0.3em] rounded-3xl transition-all">
-                Console de Régulation (PCC)
-            </button>
+            <div class="grid grid-cols-2 gap-3">
+                <button onclick="goPCC()" 
+                    class="py-4 bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 hover:border-cyan-500/30 font-black text-[9px] uppercase tracking-[0.2em] rounded-2xl transition-all">
+                    Régulation (PCC)
+                </button>
+                <button onclick="window.location.href='stats_ligne_58.html'" 
+                    class="py-4 bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 hover:border-cyan-500/30 font-black text-[9px] uppercase tracking-[0.2em] rounded-2xl transition-all">
+                    Analytics
+                </button>
+            </div>
+
+            <div id="live-status-bar" class="mt-4 px-5 py-3 bg-cyan-500/5 border border-cyan-500/10 rounded-2xl flex justify-between items-center opacity-0 transition-all duration-1000">
+                <div class="flex items-center gap-2">
+                    <div id="status-dot" class="w-1.5 h-1.5 bg-green-500 rounded-full status-pulse"></div>
+                    <span class="text-[8px] font-black orbitron text-slate-400 uppercase">L58 Ponctualité: <span id="hub-ponct" class="text-white">--%</span></span>
+                </div>
+                <div class="h-3 w-[1px] bg-white/10"></div>
+                <span class="text-[8px] font-black orbitron text-slate-400 uppercase">Dérive: <span id="hub-eid" class="text-cyan-400">--</span></span>
+            </div>
         </div>
 
-        <footer class="mt-12 text-center">
-            <p class="text-[8px] text-slate-600 font-bold uppercase tracking-widest">IRIS NETWORK © 2026 - Sécurisé par Protocole 58-Alpha</p>
+        <footer class="mt-8 text-center">
+            <p class="text-[7px] text-slate-600 font-bold uppercase tracking-[0.3em]">IRIS NETWORK © 2026 - Sécurisé par Protocole 58-Alpha</p>
         </footer>
     </div>
 
     <script>
-        // Récupération des données locales si existantes (confort chauffeur)
+        // Initialisation et récupération des données locales
         window.onload = () => {
             if(localStorage.getItem('iris_mat')) document.getElementById('mat').value = localStorage.getItem('iris_mat');
             if(localStorage.getItem('iris_pol')) document.getElementById('pol').value = localStorage.getItem('iris_pol');
+            
+            // Premier rafraîchissement des stats
+            refreshHubStats();
+            // Boucle de rafraîchissement (toutes les 30 secondes)
+            setInterval(refreshHubStats, 30000);
         };
+
+        // Fonction pour lire les données du moteur Python
+        async function refreshHubStats() {
+            try {
+                const response = await fetch('web_stats.json');
+                const data = await response.json();
+                
+                document.getElementById('hub-ponct').innerText = data.ponctualite + "%";
+                document.getElementById('hub-eid').innerText = "+" + data.eid_moyen + "m";
+                
+                // Afficher la barre de statut si le fichier JSON existe
+                const bar = document.getElementById('live-status-bar');
+                bar.classList.remove('opacity-0');
+                bar.classList.add('opacity-100');
+                
+                // Alerte visuelle si ponctualité basse
+                const dot = document.getElementById('status-dot');
+                if(data.ponctualite < 90) {
+                    dot.classList.replace('bg-green-500', 'bg-orange-500');
+                } else {
+                    dot.classList.replace('bg-orange-500', 'bg-green-500');
+                }
+            } catch (e) {
+                console.warn("⚠️ Moteur IRIS en attente de données (web_stats.json absent).");
+            }
+        }
 
         function goChauffeur() {
             const m = document.getElementById('mat').value;
@@ -131,11 +175,9 @@
                 return;
             }
 
-            // Sauvegarde pour la prochaine fois
             localStorage.setItem('iris_mat', m);
             localStorage.setItem('iris_pol', p);
             
-            // Animation de sortie optionnelle
             document.body.style.opacity = '0';
             document.body.style.transition = '0.5s';
             

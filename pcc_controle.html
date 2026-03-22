@@ -2,193 +2,82 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IRIS PRO V6.1 - Ligne 58</title>
-    
+    <title>IRIS 58 - FULL TERMINAL CONTROL</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;900&family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
-
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Inter:wght@400;700;900&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
     <style>
-        body { background: #000; color: white; font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; margin: 0; }
+        body { background: #010208; color: white; font-family: 'Inter', sans-serif; height: 100vh; overflow: hidden; display: flex; margin: 0; }
+        #map { flex: 1; height: 100%; filter: grayscale(1) invert(0.95) contrast(1.1) brightness(0.8) hue-rotate(195deg); }
+        .sidebar { width: 450px; background: #05070a; border-left: 1px solid #1e293b; display: flex; flex-direction: column; z-index: 1001; }
         .orbitron { font-family: 'Orbitron', sans-serif; }
-        .glass { background: rgba(20, 20, 20, 0.98); backdrop-filter: blur(25px); border: 1px solid rgba(255,255,255,0.1); }
+        .mono { font-family: 'JetBrains Mono', monospace; }
         
-        /* Carte en arrière-plan absolu */
-        #map { position: absolute; inset: 0; z-index: 1; background: #111; filter: grayscale(1) invert(0.92) contrast(1.1); }
+        /* Marqueurs */
+        .bus-marker { width: 14px; height: 14px; background: #00f2ff; border: 2px solid #fff; border-radius: 2px; transform: rotate(45deg); box-shadow: 0 0 15px #00f2ff; }
+        .bus-off-route { background: #ff0055 !important; box-shadow: 0 0 20px #ff0055 !important; }
+        .glass-ui { background: rgba(5, 7, 10, 0.9); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.05); }
         
-        /* Layer UI : Toujours visible et cliquable */
-        .ui-layer { position: absolute; inset: 0; z-index: 100; pointer-events: none; display: flex; flex-direction: column; padding: 20px; }
-        .interactive { pointer-events: auto !important; }
-
-        /* Menus tiroirs : Priorité Maximale */
-        .drawer { position: fixed; inset: 0; background: rgba(0,0,0,0.98); transform: translateY(100%); transition: transform 0.4s ease-out; z-index: 9999; }
-        .drawer.open { transform: translateY(0); }
-        
-        .btn-sig { @apply glass p-6 rounded-[30px] border-white/5 active:scale-95 transition-all flex flex-col items-center justify-center; }
+        /* Animation TM */
+        .tm-pulse { animation: pulse-blue 2s infinite; }
+        @keyframes pulse-blue { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
     </style>
 </head>
-<body>
+<body class="flex">
 
-    <div id="map"></div>
-
-    <div class="ui-layer">
+    <div class="relative flex-1 flex flex-col">
+        <div id="map"></div>
         
-        <div class="flex justify-between items-start">
-            <div class="flex flex-col gap-3 interactive">
-                <div class="flex gap-3">
-                    <div class="bg-[#FFD700] text-black px-6 py-2 text-4xl font-black rounded-2xl orbitron">58</div>
-                    <div class="flex flex-col">
-                        <span id="mission-id" class="text-xl font-black italic uppercase text-cyan-400">Marche --</span>
-                        <span class="text-[8px] font-bold text-zinc-500 tracking-widest uppercase">Système IRIS Actif</span>
-                    </div>
+        <div class="absolute top-6 left-6 z-[1000]">
+            <div class="glass-ui p-6 rounded-2xl w-85 border-l-4 border-cyan-600 shadow-2xl">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-[9px] font-black text-cyan-500 uppercase tracking-widest italic italic">PCC Tactique / L58</h3>
+                    <div id="status-glow" class="w-2 h-2 bg-cyan-500 rounded-full animate-pulse shadow-[0_0_10px_#00f2ff]"></div>
                 </div>
-                <button onclick="toggleDrawer('mission-picker')" class="bg-cyan-500 text-black font-black text-[9px] py-2 px-4 rounded-xl uppercase tracking-widest shadow-lg shadow-cyan-500/20">
-                    SÉLECTIONNER MARCHE
-                </button>
-            </div>
-
-            <button onclick="toggleDrawer('tm-menu')" class="glass px-6 py-4 rounded-[25px] border-b-4 border-cyan-500 interactive">
-                <p class="orbitron text-[10px] font-black text-cyan-400">TABLEAU DE MARCHE</p>
-                <p id="clock" class="text-xs font-bold text-white mt-1 text-center">--:--:--</p>
-            </button>
-        </div>
-
-        <div class="flex-1 flex items-center justify-center">
-            <div onclick="nextStation()" class="glass w-full max-w-xl p-10 rounded-[50px] border-t-4 border-cyan-500 text-center interactive shadow-2xl active:scale-95 transition-all">
-                <div class="flex justify-between items-center mb-6">
-                    <p id="radar-id-display" class="orbitron text-xl text-zinc-500">RADAR</p>
-                    <div class="text-right">
-                        <p class="text-[8px] text-cyan-500 font-black uppercase">Départ Théorique</p>
-                        <p id="theoretical-time" class="orbitron text-3xl text-white font-black">--:--</p>
-                    </div>
-                </div>
-                <h1 id="stop-name" class="text-3xl font-black italic uppercase leading-tight mb-8">EN ATTENTE DE MISSION...</h1>
-                <div class="w-full h-2 bg-white/5 rounded-full overflow-hidden">
-                    <div id="progress" class="h-full bg-cyan-400 shadow-[0_0_15px_#22d3ee] transition-all" style="width: 0%"></div>
-                </div>
+                <div id="telemetry-feed" class="space-y-3"></div>
             </div>
         </div>
 
-        <div class="flex justify-between items-end">
-            <button onclick="toggleDrawer('sig-menu')" class="bg-red-600 text-white font-black text-xs py-5 px-8 rounded-3xl shadow-lg shadow-red-600/20 uppercase interactive active:scale-95">
-                ⚠️ SIGNALER
-            </button>
-            
-            <div class="glass p-8 rounded-[45px] text-center min-w-[150px] interactive">
-                <span id="speed" class="text-6xl font-black orbitron italic">00</span>
-                <p class="text-[10px] text-zinc-500 font-black uppercase mt-2">km/h</p>
+        <div id="iris-alert-zone" class="absolute bottom-10 left-1/2 -translate-x-1/2 z-[1000] w-[550px] pointer-events-none flex flex-col gap-3"></div>
+    </div>
+
+    <div class="sidebar">
+        <div class="p-8 border-b border-white/5 bg-slate-900/20">
+            <h1 class="text-3xl font-black text-white italic orbitron tracking-tighter">IRIS <span class="text-cyan-500">T-PCC</span></h1>
+            <p class="text-[8px] font-bold text-slate-500 uppercase tracking-[0.4em] mt-3">Gestion de Ligne & Terminus</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-px bg-white/5 border-b border-white/5">
+            <div class="p-6 bg-[#05070a]">
+                <p class="text-[9px] text-slate-500 font-black uppercase mb-1">Prod. Ligne</p>
+                <p id="km-total" class="text-2xl font-black orbitron text-white">0.00</p>
+            </div>
+            <div class="p-6 bg-[#05070a]">
+                <p class="text-[9px] text-slate-500 font-black uppercase mb-1 text-red-500">Pertes EID</p>
+                <p id="km-lost" class="text-2xl font-black orbitron text-red-600">0.00</p>
             </div>
         </div>
-    </div>
 
-    <div id="mission-picker" class="drawer flex flex-col p-8">
-        <div class="w-20 h-2 bg-zinc-800 rounded-full mx-auto mb-10 interactive" onclick="toggleDrawer('mission-picker')"></div>
-        <h2 class="text-3xl font-black orbitron text-center mb-10">CHOIX DE LA MARCHE</h2>
-        <div class="space-y-4 overflow-y-auto interactive">
-            <button onclick="selectMission('44454788', '1')" class="w-full glass p-6 rounded-3xl text-left border-cyan-500/20">
-                <p class="orbitron text-cyan-400 font-bold">MARCHE 44454788 (Agent 1)</p>
-                <p class="text-xs text-zinc-500 mt-1">Départ CTL : 07:00 | Châtelet -> Vanves</p>
-            </button>
-            <button onclick="selectMission('44454752', '9')" class="w-full glass p-6 rounded-3xl text-left border-zinc-500/20">
-                <p class="orbitron text-cyan-400 font-bold">MARCHE 44454752 (Agent 9)</p>
-                <p class="text-xs text-zinc-500 mt-1">Départ CTL : 22:15 | Châtelet -> Vanves</p>
-            </button>
-            <button onclick="toggleDrawer('mission-picker')" class="w-full p-6 text-zinc-500 font-bold uppercase">Fermer</button>
+        <div class="p-6 flex-grow overflow-y-auto space-y-6">
+            <div class="space-y-4">
+                <select id="target-bus" class="w-full bg-[#0d1117] border border-white/10 p-4 rounded-xl text-xs font-bold text-cyan-400 outline-none focus:border-cyan-500">
+                    <option value="ALL">-- SÉLECTION UNITÉ --</option>
+                </select>
+                <textarea id="msg-text" placeholder="Entrer consigne régulation..." class="w-full bg-black border border-white/10 p-4 rounded-xl text-[11px] mono h-24 outline-none text-white"></textarea>
+                <div class="flex gap-2">
+                    <button onclick="executeOrder('RETOURNEMENT')" class="flex-1 bg-orange-600/10 text-orange-500 border border-orange-500/30 py-4 rounded-xl font-black text-[9px] uppercase hover:bg-orange-600 hover:text-white transition-all">Rebroussage Sécurisé</button>
+                    <button onclick="sendFreeMsg()" class="flex-1 bg-cyan-600 py-4 rounded-xl font-black text-[9px] uppercase text-black hover:bg-white transition-all">Transmettre</button>
+                </div>
+            </div>
+            <div id="bus-strips" class="space-y-2"></div>
         </div>
-    </div>
 
-    <div id="sig-menu" class="drawer flex flex-col p-8">
-        <div class="w-20 h-2 bg-zinc-800 rounded-full mx-auto mb-10 interactive" onclick="toggleDrawer('sig-menu')"></div>
-        <h2 class="text-3xl font-black orbitron text-red-500 text-center mb-10 italic">SIGNALISATION</h2>
-        <div class="grid grid-cols-2 gap-4 interactive pb-10">
-            <button onclick="sendSig('MALAISE')" class="btn-sig border-red-500/30 text-red-500"><span class="text-3xl mb-2">🚨</span>MALAISE</button>
-            <button onclick="sendSig('TRAFIC')" class="btn-sig border-yellow-500/30 text-yellow-500"><span class="text-3xl mb-2">🚧</span>TRAFIC</button>
-            <button onclick="sendSig('ACCIDENT')" class="btn-sig border-orange-500/30 text-orange-500"><span class="text-3xl mb-2">🚗</span>ACCIDENT</button>
-            <button onclick="toggleDrawer('sig-menu')" class="btn-sig border-white/10 text-white">RETOUR</button>
+        <div class="p-4 bg-black border-t border-white/5">
+            <div id="logs" class="font-mono text-[9px] text-slate-800 h-24 overflow-y-auto"></div>
         </div>
-    </div>
-
-    <div id="tm-menu" class="drawer flex flex-col p-8">
-        <div class="w-20 h-2 bg-zinc-800 rounded-full mx-auto mb-10 interactive" onclick="toggleDrawer('tm-menu')"></div>
-        <div id="tm-list" class="space-y-4 overflow-y-auto interactive pr-2"></div>
     </div>
 
     <script>
-        // Données horaires issues de tes fichiers RATP
-        const DATA = {
-            "44454788": [
-                { id: "CTL", name: "CHÂTELET", time: "07:00", lat: 48.858, lon: 2.347 },
-                { id: "GA", name: "QUAI DES GRANDS AUGUSTINS", time: "07:00", lat: 48.854, lon: 2.342 },
-                { id: "LUX", name: "LUXEMBOURG", time: "07:04", lat: 48.846, lon: 2.337 },
-                { id: "18J", name: "18 JUIN 1940", time: "07:09", lat: 48.842, lon: 2.323 },
-                { id: "AL", name: "ALÉSIA", time: "07:14", lat: 48.828, lon: 2.327 },
-                { id: "CHN", name: "CHÂTILLON-MONTROUGE", time: "07:23", lat: 48.811, lon: 2.301 },
-                { id: "VM", name: "VANVES-MICHELET", time: "07:33", lat: 48.821, lon: 2.290 }
-            ]
-        };
-
-        let map, userMarker, currentMission = null, currentIndex = 0;
-
-        function init() {
-            // Initialisation de la carte avec sécurité si Leaflet échoue
-            try {
-                map = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.84, 2.32], 13);
-                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
-                userMarker = L.circleMarker([0,0], {radius: 8, color: '#fff', fillColor: '#22d3ee', fillOpacity: 1, weight: 3}).addTo(map);
-            } catch(e) { console.error("Carte non chargée"); }
-            
-            setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString('fr-FR'); }, 1000);
-            updateGeo();
-        }
-
-        function toggleDrawer(id) { document.getElementById(id).classList.toggle('open'); }
-
-        function selectMission(tv, agent) {
-            currentMission = DATA[tv] || DATA["44454788"];
-            currentIndex = 0;
-            document.getElementById('mission-id').innerText = `TV ${tv} / Agent ${agent}`;
-            toggleDrawer('mission-picker');
-            updateDisplay();
-        }
-
-        function updateDisplay() {
-            if(!currentMission) return;
-            const r = currentMission[currentIndex];
-            document.getElementById('stop-name').innerText = r.name;
-            document.getElementById('radar-id-display').innerText = r.id;
-            document.getElementById('theoretical-time').innerText = r.time;
-            document.getElementById('progress').style.width = (currentIndex / (currentMission.length - 1)) * 100 + "%";
-            
-            const list = document.getElementById('tm-list');
-            list.innerHTML = currentMission.map((s, i) => `
-                <div class="flex justify-between items-center py-5 border-b border-white/5 ${i < currentIndex ? 'opacity-20' : ''}">
-                    <div><p class="text-xs text-cyan-500 orbitron">${s.id}</p><p class="text-xl font-bold uppercase italic ${i === currentIndex ? 'text-cyan-400' : ''}">${s.name}</p></div>
-                    <p class="orbitron font-bold text-xl">${s.time}</p>
-                </div>
-            `).join('');
-        }
-
-        function nextStation() {
-            if(currentMission && currentIndex < currentMission.length - 1) { currentIndex++; updateDisplay(); }
-        }
-
-        function updateGeo() {
-            if ("geolocation" in navigator) {
-                navigator.geolocation.watchPosition((pos) => {
-                    document.getElementById('speed').innerText = Math.round((pos.coords.speed || 0) * 3.6).toString().padStart(2, '0');
-                    if(map && userMarker) {
-                        userMarker.setLatLng([pos.coords.latitude, pos.coords.longitude]);
-                        map.panTo([pos.coords.latitude, pos.coords.longitude]);
-                    }
-                }, null, { enableHighAccuracy: true });
-            }
-        }
-
-        function sendSig(t) { alert("SIGNALEMENT ENVOYÉ : " + t); toggleDrawer('sig-menu'); }
-
-        window.onload = init;
-    </script>
-</body>
-</html>
+        let map, fleet = {};

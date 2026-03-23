@@ -24,10 +24,10 @@
     <div class="fixed top-5 left-5 z-[1000] bg-black/80 p-4 rounded-2xl border border-cyan-500/30">
         <h1 class="text-cyan-400 font-bold tracking-tighter">PCC LIGNE 58</h1>
         <p id="bus-count" class="text-[10px] text-slate-400 italic">CHARGEMENT DU SYSTÈME...</p>
+        <p id="debug-coords" class="text-[9px] text-cyan-500/50 mt-1"></p>
     </div>
 
     <script>
-        // On initialise la carte sur Paris par défaut
         const map = L.map('map', {zoomControl: false}).setView([48.8566, 2.3522], 13);
         
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
@@ -41,25 +41,25 @@
             try {
                 const response = await fetch('https://angot.pythonanywhere.com/get_stats');
                 const data = await response.json();
-                
-                // On vérifie si bus_positions existe dans la réponse
                 const buses = data.bus_positions || [];
 
                 document.getElementById('bus-count').innerText = `${buses.length} BUS EN LIGNE`;
 
                 buses.forEach(bus => {
-                    // SÉCURITÉ : On vérifie si c'est 'lng' ou 'lon' qui arrive du serveur
-                    const longitude = bus.lng || bus.lon;
-                    const latitude = bus.lat;
+                    // FORCE LA CONVERSION EN NOMBRE (Crucial)
+                    const latitude = parseFloat(bus.lat);
+                    const longitude = parseFloat(bus.lng || bus.lon);
 
-                    if (latitude && longitude) {
+                    // On vérifie que les coordonnées existent et ne sont pas à 0
+                    if (!isNaN(latitude) && !isNaN(longitude) && latitude !== 0) {
                         const pos = [latitude, longitude];
+                        
+                        // Debug visuel pour toi
+                        document.getElementById('debug-coords').innerText = `Dernier point : ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
 
                         if (markers[bus.id]) {
-                            // Mise à jour position fluide
                             markers[bus.id].setLatLng(pos);
                         } else {
-                            // Création du bus avec icône stylisée
                             const icon = L.divIcon({
                                 className: 'custom-div-icon',
                                 html: `<div class="bus-label">🚍 P${bus.id}</div>`,
@@ -68,9 +68,9 @@
                             });
                             markers[bus.id] = L.marker(pos, {icon: icon}).addTo(map);
                             
-                            // Si c'est le premier bus qu'on voit, on centre la carte dessus
+                            // Zoom automatique sur le bus au premier chargement
                             if (!firstBusFound) {
-                                map.setView(pos, 16);
+                                map.flyTo(pos, 16);
                                 firstBusFound = true;
                             }
                         }
@@ -78,13 +78,12 @@
                 });
             } catch (e) {
                 console.error("Erreur Radar:", e);
-                document.getElementById('bus-count').innerText = "ERREUR SERVEUR";
+                document.getElementById('bus-count').innerText = "ERREUR LIAISON SERVEUR";
             }
         }
 
-        // Rafraîchir toutes les 2 secondes pour un mouvement fluide
         setInterval(refreshRadar, 2000);
-        refreshRadar(); // Premier lancement immédiat
+        refreshRadar();
     </script>
 </body>
 </html>

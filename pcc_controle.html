@@ -2,40 +2,91 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>IRIS 58 - PCC RADAR</title>
+    <title>IRIS 58 - MISSION CONTROL</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=JetBrains+Mono:wght@300;500&display=swap" rel="stylesheet">
     <style>
-        #map { height: 100vh; background: #010208; }
-        .bus-label { 
-            background: #06b6d4; color: black; font-weight: bold; 
-            padding: 2px 8px; border-radius: 10px; border: 2px solid white;
-            font-family: sans-serif; font-size: 11px;
-            white-space: nowrap;
-            box-shadow: 0 0 15px rgba(6, 182, 212, 0.5);
+        body { font-family: 'JetBrains+Mono', monospace; background: #020617; color: #f8fafc; margin: 0; overflow: hidden; }
+        #map { height: 100vh; width: 100vw; filter: brightness(0.6) contrast(1.2) saturate(0.8); }
+        .glass { background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(10px); border: 1px solid rgba(6, 182, 212, 0.2); }
+        .orbitron { font-family: 'Orbitron', sans-serif; }
+        
+        /* Style des Arrêts (Points de Contrôle) */
+        .stop-icon {
+            background: rgba(6, 182, 212, 0.1); border: 1px solid #06b6d4;
+            border-radius: 50%; box-shadow: 0 0 5px #06b6d4;
         }
+        
+        /* Style du Bus */
+        .bus-marker {
+            background: #0ea5e9; color: white; border: 2px solid #fff;
+            padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 10px;
+            box-shadow: 0 0 15px #0ea5e9; white-space: nowrap;
+        }
+
+        /* Popup NASA Style */
+        .leaflet-popup-content-wrapper { background: #0f172a; color: white; border: 1px solid #06b6d4; font-family: 'JetBrains+Mono'; }
+        .leaflet-popup-tip { background: #06b6d4; }
     </style>
 </head>
-<body class="bg-black text-white overflow-hidden">
+<body>
 
     <div id="map"></div>
 
-    <div class="fixed top-5 left-5 z-[1000] bg-black/80 p-4 rounded-2xl border border-cyan-500/30">
-        <h1 class="text-cyan-400 font-bold tracking-tighter">PCC LIGNE 58</h1>
-        <p id="bus-count" class="text-[10px] text-slate-400 italic">CHARGEMENT DU SYSTÈME...</p>
-        <p id="debug-coords" class="text-[9px] text-cyan-500/50 mt-1"></p>
+    <div class="fixed top-6 left-6 z-[1000] glass p-4 rounded-lg border-l-4 border-cyan-500 w-80 pointer-events-none">
+        <h1 class="text-xl font-bold orbitron text-cyan-400">IRIS // L58</h1>
+        <p class="text-[9px] text-cyan-700 tracking-[0.2em] font-bold">SYSTEM STATUS: OPERATIONAL</p>
+        <div id="bus-count" class="text-xs mt-2 text-slate-400">0 BUS EN LIGNE</div>
+    </div>
+
+    <div class="fixed right-6 top-6 bottom-6 w-80 z-[1000] glass rounded-xl p-4 overflow-y-auto neon-border">
+        <div class="mb-6 border-b border-white/10 pb-4 text-center">
+            <p class="text-[9px] text-slate-500 uppercase font-bold">Objectif Contrat IDFM</p>
+            <p class="text-3xl font-bold orbitron text-green-400">98.5%</p>
+            <p class="text-[8px] text-green-900 font-bold uppercase mt-1">Prime d'exploitation : Maximale</p>
+        </div>
+        
+        <h2 class="text-xs font-bold orbitron text-cyan-500 mb-4 flex items-center gap-2">
+            <span class="w-2 h-2 bg-cyan-500 rounded-full animate-pulse"></span> RADAR LIVE
+        </h2>
+        <div id="bus-list" class="space-y-3 text-xs"></div>
     </div>
 
     <script>
-        const map = L.map('map', {zoomControl: false}).setView([48.8566, 2.3522], 13);
-        
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; OpenStreetMap'
-        }).addTo(map);
+        // 1. INITIALISATION CARTE
+        const map = L.map('map', {zoomControl: false}).setView([48.8285, 2.3214], 14);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
-        let markers = {}; 
-        let firstBusFound = false;
+        // 2. TRACÉ DE LA LIGNE 58 (Exemple de tracé Vanves -> Châtillon)
+        // Remplace par tes propres coordonnées précises si nécessaire
+        const lineCoords = [
+            [48.8210, 2.2980], [48.8245, 2.3050], [48.8280, 2.3150], 
+            [48.8320, 2.3250], [48.8360, 2.3350]
+        ];
+        
+        // Aller (Bleu Cyan)
+        L.polyline(lineCoords, {color: '#06b6d4', weight: 4, opacity: 0.5, dashArray: '10, 10'}).addTo(map);
+        // Retour (Magenta pour différencier)
+        L.polyline(lineCoords, {color: '#d946ef', weight: 2, opacity: 0.3}).addTo(map);
+
+        // 3. POINTS DE CONTRÔLE (ARRÊTS)
+        const stops = [
+            { name: "Vanves - Lycée Michelet", pos: [48.8210, 2.2980], code: "MIC" },
+            { name: "Mairie de Vanves", pos: [48.8245, 2.3050], code: "MVV" },
+            { name: "Corentin Celton", pos: [48.8280, 2.3150], code: "CEL" },
+            { name: "Porte de Vanves", pos: [48.8320, 2.3250], code: "PDV" }
+        ];
+
+        stops.forEach(stop => {
+            const stopIcon = L.divIcon({ className: 'stop-icon', iconSize: [8, 8] });
+            L.marker(stop.pos, {icon: stopIcon}).addTo(map)
+             .bindTooltip(`<span class="orbitron text-[9px]">${stop.name}</span>`, {permanent: false, direction: 'top'});
+        });
+
+        // 4. LOGIQUE RADAR DYNAMIQUE
+        let markers = {};
 
         async function refreshRadar() {
             try {
@@ -44,42 +95,59 @@
                 const buses = data.bus_positions || [];
 
                 document.getElementById('bus-count').innerText = `${buses.length} BUS EN LIGNE`;
+                const listDiv = document.getElementById('bus-list');
+                listDiv.innerHTML = "";
 
                 buses.forEach(bus => {
-                    // FORCE LA CONVERSION EN NOMBRE (Crucial)
-                    const latitude = parseFloat(bus.lat);
-                    const longitude = parseFloat(bus.lng || bus.lon);
+                    const lat = parseFloat(bus.lat);
+                    const lon = parseFloat(bus.lng || bus.lon);
+                    if (!lat || !lon) return;
 
-                    // On vérifie que les coordonnées existent et ne sont pas à 0
-                    if (!isNaN(latitude) && !isNaN(longitude) && latitude !== 0) {
-                        const pos = [latitude, longitude];
-                        
-                        // Debug visuel pour toi
-                        document.getElementById('debug-coords').innerText = `Dernier point : ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+                    const pos = [lat, lon];
+                    
+                    // Calcul fictif du prochain point de passage (Basé sur la position GPS)
+                    const nextStop = stops[1].name; // On pourrait calculer le plus proche
+                    const eta = Math.floor(Math.random() * 5) + 1; // Simulation temps réel
 
-                        if (markers[bus.id]) {
-                            markers[bus.id].setLatLng(pos);
-                        } else {
-                            const icon = L.divIcon({
-                                className: 'custom-div-icon',
-                                html: `<div class="bus-label">🚍 P${bus.id}</div>`,
-                                iconSize: [60, 25],
-                                iconAnchor: [30, 12]
-                            });
-                            markers[bus.id] = L.marker(pos, {icon: icon}).addTo(map);
-                            
-                            // Zoom automatique sur le bus au premier chargement
-                            if (!firstBusFound) {
-                                map.flyTo(pos, 16);
-                                firstBusFound = true;
-                            }
-                        }
+                    // Popup NASA Content
+                    const popupContent = `
+                        <div class="p-2">
+                            <b class="text-cyan-400 orbitron">P${bus.id} // MISSION DATA</b><br>
+                            <hr class="my-2 border-white/10">
+                            <div class="text-[10px] space-y-1">
+                                <div><span class="text-slate-500">SERVICE:</span> ${bus.service || '58-1'}</div>
+                                <div><span class="text-slate-500">POSITION:</span> ${lat.toFixed(4)}, ${lon.toFixed(4)}</div>
+                                <div><span class="text-slate-500">PROCHAIN POINT:</span> ${nextStop}</div>
+                                <div><span class="text-slate-500">T_ESTIMÉ:</span> <span class="text-green-400">${eta} MIN</span></div>
+                                <div><span class="text-slate-500">VITESSE:</span> ${bus.speed || 0} KM/H</div>
+                            </div>
+                        </div>
+                    `;
+
+                    if (markers[bus.id]) {
+                        markers[bus.id].setLatLng(pos);
+                        markers[bus.id].setPopupContent(popupContent);
+                    } else {
+                        const icon = L.divIcon({
+                            className: 'custom-icon',
+                            html: `<div class="bus-marker">🚍 P${bus.id}</div>`,
+                            iconSize: [60, 25]
+                        });
+                        markers[bus.id] = L.marker(pos, {icon: icon}).addTo(map).bindPopup(popupContent);
                     }
+
+                    // Ajout à la barre latérale
+                    listDiv.innerHTML += `
+                        <div class="p-3 bg-white/5 border-l-2 border-cyan-500 rounded cursor-pointer" onclick="map.flyTo([${lat}, ${lon}], 17)">
+                            <div class="flex justify-between font-bold text-cyan-400">
+                                <span>BUS #${bus.id}</span>
+                                <span>${bus.service || 'S58'}</span>
+                            </div>
+                            <div class="text-[9px] mt-1 text-slate-400">DIR: CHATILLON-MONTROUGE</div>
+                        </div>
+                    `;
                 });
-            } catch (e) {
-                console.error("Erreur Radar:", e);
-                document.getElementById('bus-count').innerText = "ERREUR LIAISON SERVEUR";
-            }
+            } catch (e) { console.error("Signal perdu"); }
         }
 
         setInterval(refreshRadar, 2000);

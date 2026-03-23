@@ -2,127 +2,60 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>IRIS 58 - PCC COMMAND & TR</title>
+    <title>IRIS 58 - PCC COMMAND CENTER (LIGHT)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=JetBrains+Mono:wght@300;500&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'JetBrains+Mono', monospace; background: #020617; color: #f8fafc; margin: 0; overflow: hidden; }
-        #map { height: 100vh; width: 100vw; filter: brightness(0.5) contrast(1.2); }
-        .glass { background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(10px); border: 1px solid rgba(6, 182, 212, 0.2); }
+        body { font-family: 'JetBrains+Mono', monospace; background: #f8fafc; color: #0f172a; margin: 0; overflow: hidden; }
+        /* Fond de carte clair Positron */
+        #map { height: 100vh; width: 100vw; background: #e2e8f0; }
+        
+        /* Panneaux clairs avec effet flouté */
+        .glass { 
+            background: rgba(255, 255, 255, 0.9); 
+            backdrop-filter: blur(12px); 
+            border: 1px solid rgba(6, 182, 212, 0.4); 
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            color: #1e293b;
+        }
         .orbitron { font-family: 'Orbitron', sans-serif; }
-        .terminal-text { color: #06b6d4; text-shadow: 0 0 5px rgba(6, 182, 212, 0.5); }
-        .bus-marker { background: #0ea5e9; color: white; border: 2px solid #fff; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 11px; }
-        .btn-tr { background: #06b6d4; color: black; font-weight: bold; padding: 4px 8px; border-radius: 4px; font-size: 10px; }
+        
+        /* Marqueur Bus contrasté pour fond clair */
+        .bus-marker { 
+            background: #0369a1; /* Bleu pétrole foncé */
+            color: white; 
+            border: 2px solid #fff; 
+            padding: 3px 10px; 
+            border-radius: 6px; 
+            font-weight: 800; 
+            font-size: 12px; 
+            box-shadow: 0 4px 10px rgba(3, 105, 161, 0.3);
+            white-space: nowrap;
+        }
+        
+        /* Points d'arrêts discrets */
+        .stop-dot { background: white; border: 2px solid #0891b2; border-radius: 50%; box-shadow: 0 0 5px rgba(0,0,0,0.1); }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
     </style>
 </head>
 <body>
 
     <div id="map"></div>
 
-    <div class="fixed top-6 left-6 z-[1000] glass p-4 rounded-lg border-l-4 border-cyan-500 w-72">
-        <h1 class="text-xl font-bold orbitron text-cyan-400">IRIS // TR-58</h1>
-        <div id="bus-count" class="text-[10px] text-slate-500 italic">0 UNITÉS EN MOUVEMENT</div>
-    </div>
-
-    <div class="fixed top-6 right-6 z-[1000] glass p-4 rounded-lg border-t-2 border-cyan-500 w-96">
-        <h2 class="text-xs orbitron mb-3 text-cyan-300 flex justify-between">
-            <span>SÉQUENCEUR DE DÉPART</span>
-            <span class="animate-pulse">● LIVE</span>
-        </h2>
-        <div id="tr-console" class="space-y-3 max-h-[40vh] overflow-y-auto pr-2">
-            <p class="text-[10px] text-slate-500 italic">Analyse des positions terminus...</p>
+    <div class="fixed top-6 left-6 z-[1000] flex flex-col gap-4 pointer-events-none">
+        <div class="glass p-5 rounded-xl border-l-4 border-cyan-600 pointer-events-auto w-80">
+            <h1 class="text-xl font-bold orbitron text-cyan-700 tracking-tighter">IRIS // NEXUS-58</h1>
+            <p class="text-[9px] text-slate-500 font-bold uppercase tracking-[0.2em]">Régulation Terminus & TR</p>
+            <div class="flex gap-4 mt-3 text-[10px] font-bold">
+                <div class="text-slate-400 italic">LINK: <span id="ping" class="text-cyan-600">--ms</span></div>
+                <div class="text-slate-400 italic text-right">UNITS: <span id="bus-count" class="text-cyan-600">0</span></div>
+            </div>
         </div>
     </div>
 
-    <div class="fixed bottom-6 left-6 right-6 z-[1000] glass p-4 rounded-xl flex flex-col gap-3">
-        <div class="flex gap-2">
-            <button onclick="sendMsg('TEMPORISE')" class="text-[9px] border border-cyan-900 px-3 py-1 rounded hover:bg-cyan-500 hover:text-black">TEMPORISE</button>
-            <button onclick="sendMsg('JE VAIS TE LIMITER')" class="text-[9px] border border-cyan-900 px-3 py-1 rounded hover:bg-cyan-500 hover:text-black">LIMITATION</button>
-            <button onclick="sendMsg('FAIS UNE ANNONCE VOYAGEUR')" class="text-[9px] border border-cyan-900 px-3 py-1 rounded hover:bg-cyan-500 hover:text-black">ANNONCE VOY.</button>
-            <button onclick="sendMsg('ATTENTION A TES ECARTS')" class="text-[9px] border border-red-900 px-3 py-1 rounded hover:bg-red-600">ÉCARTS</button>
-            <input type="text" id="free-msg" placeholder="MESSAGE LIBRE..." class="flex-1 bg-black/40 border border-white/10 rounded px-3 text-[10px] outline-none text-cyan-400">
-            <button onclick="sendFreeMsg()" class="bg-white text-black text-[10px] px-4 font-bold rounded">ENVOYER</button>
-        </div>
-    </div>
-
-    <script>
-        const map = L.map('map', {zoomControl: false}).setView([48.8350, 2.3150], 14);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
-
-        let markers = {};
-        const TERMINUS = {
-            VM: { name: "VANVES MICHELET", pos: [48.8213, 2.2985], pause: 10 },
-            CH: { name: "CHATELET", pos: [48.8585, 2.3475], pause: 5 }
-        };
-
-        async function sendMsg(m) {
-            await fetch('https://angot.pythonanywhere.com/send_msg', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({msg: m, target: "ALL"})
-            });
-        }
-
-        function sendFreeMsg() {
-            const input = document.getElementById('free-msg');
-            if(input.value) { sendMsg(input.value.toUpperCase()); input.value = ""; }
-        }
-
-        function getDistance(p1, p2) {
-            return map.distance(p1, p2);
-        }
-
-        async function refresh() {
-            try {
-                const res = await fetch('https://angot.pythonanywhere.com/get_stats');
-                const data = await res.json();
-                const buses = data.bus_positions || [];
-                document.getElementById('bus-count').innerText = `${buses.length} UNITÉS EN LIGNE`;
-
-                const consoleTR = document.getElementById('tr-console');
-                consoleTR.innerHTML = "";
-
-                buses.forEach(bus => {
-                    const lat = parseFloat(bus.lat);
-                    const lon = parseFloat(bus.lng || bus.lon);
-                    const pos = [lat, lon];
-
-                    // Mise à jour Map
-                    if (markers[bus.id]) { markers[bus.id].setLatLng(pos); }
-                    else { markers[bus.id] = L.marker(pos, {icon: L.divIcon({className:'custom', html:`<div class="bus-marker">P${bus.id}</div>`})}).addTo(map); }
-
-                    // LOGIQUE TR (Régulation Terminus)
-                    let statusTR = `<span class="text-green-500 italic">EN LIGNE</span>`;
-                    
-                    // On vérifie si le bus est à Vanves (< 100m)
-                    if(getDistance(pos, TERMINUS.VM.pos) < 100) {
-                        statusTR = `<span class="text-yellow-500 font-bold">TERMINUS VM (PAUSE 10M)</span>`;
-                    } 
-                    // On vérifie si le bus est à Chatelet (< 100m)
-                    else if(getDistance(pos, TERMINUS.CH.pos) < 100) {
-                        statusTR = `<span class="text-yellow-500 font-bold">TERMINUS CH (PAUSE 5M)</span>`;
-                    }
-
-                    consoleTR.innerHTML += `
-                        <div class="bg-white/5 p-3 rounded border border-white/5">
-                            <div class="flex justify-between items-center mb-1">
-                                <span class="text-cyan-400 font-bold text-xs">P${bus.id}</span>
-                                <span class="text-[9px] uppercase">${statusTR}</span>
-                            </div>
-                            <div class="flex gap-2">
-                                <button onclick="sendMsg('REPART DE SUITE')" class="btn-tr">REPARTIR IMMEDIAT</button>
-                                <button onclick="sendMsg('ATTENDS TON TR')" class="btn-tr !bg-slate-700 !text-white">MAINTENIR TR</button>
-                            </div>
-                        </div>
-                    `;
-                });
-            } catch (e) {}
-        }
-
-        setInterval(refresh, 2000);
-        refresh();
-    </script>
-</body>
-</html>
+    <div class="fixed top-6 right

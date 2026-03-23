@@ -2,19 +2,18 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>IRIS 58 - PCC SMART REGULATION</title>
+    <title>IRIS 58 - PCC TOTAL COMMAND</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=JetBrains+Mono:wght@300;500&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'JetBrains+Mono', monospace; background: #020617; margin: 0; overflow: hidden; }
-        #map { height: 100vh; width: 100vw; filter: saturate(0.8) brightness(0.8); }
+        #map { height: 100vh; width: 100vw; }
         .glass { background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(16px); border: 1px solid rgba(6, 182, 212, 0.2); color: white; }
         .bus-marker { background: #0ea5e9; color: white; border: 2px solid #fff; padding: 2px 6px; border-radius: 4px; font-weight: 800; font-size: 10px; box-shadow: 0 0 10px rgba(14, 165, 233, 0.5); }
-        .status-advance { color: #ef4444; text-shadow: 0 0 5px rgba(239, 68, 68, 0.5); } /* Rouge: Avance (Danger) */
-        .status-delay { color: #f59e0b; } /* Orange: Retard */
-        .status-ontime { color: #22c55e; } /* Vert: À l'heure */
+        .coupling { background: #ef4444 !important; animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
     </style>
 </head>
 <body>
@@ -22,48 +21,55 @@
     <div id="map"></div>
 
     <div class="fixed top-6 left-6 z-[1000] pointer-events-none">
-        <div class="glass p-6 rounded-2xl border-l-4 border-cyan-500 w-80 shadow-2xl">
-            <h1 class="text-xl font-bold font-[Orbitron] tracking-tighter text-cyan-400">IRIS COMMAND</h1>
-            <p class="text-[9px] text-slate-400 uppercase tracking-[0.3em] mb-4">Ligne 58 | Monitoring Flux</p>
-            <div id="global-metrics" class="grid grid-cols-2 gap-4 border-t border-slate-700 pt-4">
-                <div>
-                    <p class="text-[8px] text-slate-500 uppercase">Bus en ligne</p>
-                    <p id="total-bus" class="text-lg font-bold text-white">0</p>
+        <div class="glass p-5 rounded-2xl border-l-4 border-cyan-500 w-72 shadow-2xl pointer-events-auto">
+            <h1 class="text-xl font-bold font-[Orbitron] text-cyan-400">IRIS 58</h1>
+            <div class="mt-2 space-y-1 text-[9px] font-bold uppercase tracking-wider">
+                <div class="flex items-center gap-2 text-cyan-300">
+                    <span class="w-3 h-0.5 bg-cyan-400"></span> ➔ CHÂTELET
                 </div>
-                <div>
-                    <p class="text-[8px] text-slate-500 uppercase">Alertes</p>
-                    <p id="total-alerts" class="text-lg font-bold text-red-500">0</p>
+                <div class="flex items-center gap-2 text-amber-400">
+                    <span class="w-3 h-0.5 bg-amber-400 opacity-50"></span> ➔ VANVES-MICHELET
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="fixed top-6 right-6 z-[1000] glass p-4 rounded-2xl border-t-2 border-cyan-500 w-96 pointer-events-auto shadow-2xl max-h-[90vh] flex flex-col">
-        <div class="flex justify-between items-center mb-4 pb-2 border-b border-slate-700">
-            <h2 class="text-xs font-[Orbitron] text-cyan-400">TABLEAU DE RÉGULATION</h2>
-            <span class="text-[8px] bg-cyan-900/50 px-2 py-1 rounded border border-cyan-500/30">LIVE GPS</span>
+    <div class="fixed top-6 right-6 z-[1000] glass p-4 rounded-2xl border-t-2 border-cyan-500 w-80 pointer-events-auto shadow-2xl max-h-[92vh] flex flex-col">
+        
+        <h2 class="text-[10px] font-[Orbitron] text-cyan-400 mb-4 flex justify-between">
+            <span>RÉGULATION LIVE</span>
+            <span id="bus-count" class="text-slate-400">0 BUS</span>
+        </h2>
+
+        <div id="tr-console" class="flex-1 overflow-y-auto space-y-3 mb-4 pr-1">
+            <p class="text-[10px] text-slate-500 italic text-center py-4 text-xs">Recherche de signaux GPS...</p>
         </div>
-        <div id="tr-console" class="space-y-4 overflow-y-auto pr-2">
+
+        <div class="border-t border-slate-700 pt-4 bg-slate-900/50 -mx-4 px-4 rounded-b-2xl">
+            <h3 class="text-[9px] font-bold text-slate-400 mb-2 uppercase tracking-widest">Messagerie Conducteurs</h3>
+            <div class="flex flex-col gap-2">
+                <input type="text" id="msg-input" placeholder="Taper message..." class="bg-slate-800 border border-slate-700 rounded p-2 text-[10px] focus:outline-none focus:border-cyan-500 text-white">
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="sendQuickMsg('DEPART')" class="bg-cyan-600 hover:bg-cyan-500 text-[9px] font-black p-2 rounded">DÉPART</button>
+                    <button onclick="sendQuickMsg('TR')" class="bg-slate-700 hover:bg-slate-600 text-[9px] font-black p-2 rounded">ATTENDRE</button>
+                </div>
+                <button onclick="sendMessage()" class="bg-white/10 hover:bg-white/20 text-[9px] font-black p-1 rounded border border-white/10 mt-1 uppercase">Envoyer à tous</button>
             </div>
+        </div>
     </div>
 
     <script>
         const map = L.map('map', { zoomControl: false }).setView([48.8400, 2.3200], 14);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
-        // Données théoriques (Temps de parcours total estimé : 40 min)
-        const TOTAL_TRAVEL_TIME_MIN = 40; 
+        // --- INJECTION DES TRACÉS MANUELS ---
+        const pointsAller = [[48.827584,2.305412],[48.825589,2.301909],[48.823501,2.288277],[48.825031,2.291878],[48.823801,2.297645],[48.825194,2.301046],[48.824968,2.304202],[48.827332,2.305058],[48.826447,2.310447],[48.8263,2.313094],[48.827878,2.315378],[48.830723,2.319505],[48.832371,2.32058],[48.833978,2.321797],[48.836477,2.32272],[48.838083,2.322873],[48.840945,2.321701],[48.842874,2.323921],[48.842263,2.32865],[48.844761,2.328975],[48.846788,2.328543],[48.847022,2.330718],[48.848763,2.333345],[48.849223,2.33698],[48.849633,2.339064],[48.851626,2.338738],[48.854053,2.338817],[48.855886,2.340346],[48.858221,2.343151],[48.856914,2.347984],[48.857723,2.348081]];
+        const pointsRetour = [[48.857726,2.348075],[48.855683,2.346094],[48.854111,2.343593],[48.85625,2.339505],[48.85585,2.340946],[48.854562,2.338007],[48.855286,2.337745],[48.852685,2.338699],[48.851281,2.338165],[48.849375,2.337561],[48.848251,2.332435],[48.84537,2.332244],[48.843723,2.330167],[48.84227,2.328652],[48.842936,2.323635],[48.84119,2.321502],[48.838764,2.322109],[48.836622,2.323261],[48.833611,2.324484],[48.831128,2.324011],[48.829669,2.322874],[48.827026,2.320322],[48.825134,2.318533],[48.823854,2.316807],[48.825281,2.310817],[48.826593,2.305427],[48.82559,2.301902],[48.823873,2.297374],[48.825297,2.293126],[48.823498,2.288279]];
+
+        L.polyline(pointsAller, {color: '#22d3ee', weight: 4, opacity: 0.7}).addTo(map);
+        L.polyline(pointsRetour, {color: '#fbbf24', weight: 4, opacity: 0.5, dashArray: '8, 8'}).addTo(map);
 
         let markers = {};
-
-        // Fonction pour calculer l'écart théorique
-        function calculateGap(speed, pos) {
-            // Simulation d'écart basée sur la vitesse et la position
-            // Dans une version finale, on comparerait à l'heure de passage du PDF
-            if (speed > 40) return { min: -3, label: "AVANCE", class: "status-advance" };
-            if (speed < 10) return { min: 5, label: "RETARD", class: "status-delay" };
-            return { min: 0, label: "À L'HEURE", class: "status-ontime" };
-        }
 
         async function refresh() {
             try {
@@ -71,54 +77,61 @@
                 const data = await res.json();
                 const buses = data.bus_positions || [];
                 
-                document.getElementById('total-bus').innerText = buses.length;
+                document.getElementById('bus-count').innerText = `${buses.length} BUS`;
                 const consoleEl = document.getElementById('tr-console');
                 consoleEl.innerHTML = "";
-                let alerts = 0;
 
-                buses.forEach(bus => {
-                    const speed = bus.speed || 0;
+                buses.forEach((bus, i) => {
                     const pos = [parseFloat(bus.lat), parseFloat(bus.lng || bus.lon)];
-                    const gap = calculateGap(speed, pos);
-                    if (gap.min !== 0) alerts++;
-
-                    // Mise à jour Marker
-                    if (!markers[bus.id]) {
-                        markers[bus.id] = L.marker(pos, {
-                            icon: L.divIcon({className:'custom', html:`<div class="bus-marker">P${bus.id}</div>`})
-                        }).addTo(map);
-                    } else {
+                    
+                    // Update Map
+                    if (markers[bus.id]) {
                         markers[bus.id].setLatLng(pos);
+                    } else {
+                        markers[bus.id] = L.marker(pos, {
+                            icon: L.divIcon({className:'custom', html:`<div class="bus-marker" id="b-${bus.id}">P${bus.id}</div>`})
+                        }).addTo(map);
                     }
 
-                    // Carte de Régulation
+                    // Détection simplifiée de couplage
+                    let isCoupled = false;
+                    buses.forEach((b2, i2) => {
+                        if (i !== i2 && map.distance(pos, [parseFloat(b2.lat), parseFloat(b2.lng)]) < 200) isCoupled = true;
+                    });
+
+                    if(isCoupled) document.getElementById(`b-${bus.id}`)?.classList.add('coupling');
+
+                    // Dashboard Card
                     consoleEl.innerHTML += `
-                        <div class="bg-slate-900/50 p-4 rounded-xl border border-slate-800 hover:border-cyan-500/50 transition-all">
-                            <div class="flex justify-between items-start mb-3">
-                                <div>
-                                    <h3 class="text-sm font-bold text-white">UNITÉ P${bus.id}</h3>
-                                    <p class="text-[9px] text-slate-500 font-mono italic">ID_DEV: ${bus.id}0058</p>
-                                </div>
-                                <div class="text-right">
-                                    <p class="text-[10px] font-black ${gap.class}">${gap.label}</p>
-                                    <p class="text-[9px] text-slate-400">${gap.min === 0 ? '--' : Math.abs(gap.min) + ' MIN'}</p>
-                                </div>
+                        <div class="bg-slate-800/80 p-3 rounded-xl border border-slate-700">
+                            <div class="flex justify-between font-bold text-[10px] mb-2">
+                                <span class="text-cyan-400">P${bus.id}</span>
+                                <span class="${isCoupled ? 'text-red-500 animate-pulse' : 'text-green-500'}">${isCoupled ? 'COUPLAGE' : 'NOMINAL'}</span>
                             </div>
-                            
-                            <div class="flex gap-2 mt-4">
-                                <button onclick="sendMsg('STOP', ${bus.id})" class="flex-1 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-500 py-2 rounded-lg text-[9px] font-black uppercase">Réguler</button>
-                                <button onclick="sendMsg('GO', ${bus.id})" class="flex-1 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 py-2 rounded-lg text-[9px] font-black uppercase">Relancer</button>
+                            <div class="flex gap-1">
+                                <button onclick="sendQuickMsg('DEPART')" class="flex-1 bg-cyan-900/40 text-cyan-400 text-[8px] py-1 rounded border border-cyan-500/20 uppercase">Départ</button>
+                                <button onclick="sendQuickMsg('TR')" class="flex-1 bg-slate-700 text-slate-300 text-[8px] py-1 rounded uppercase font-bold">TR</button>
                             </div>
                         </div>
                     `;
                 });
-                document.getElementById('total-alerts').innerText = alerts;
             } catch (e) {}
         }
 
-        async function sendMsg(type, id) {
-            console.log(`Commande ${type} envoyée au bus ${id}`);
-            // Intégration API send_msg ici
+        async function sendMessage() {
+            const input = document.getElementById('msg-input');
+            if(!input.value) return;
+            await sendQuickMsg(input.value);
+            input.value = "";
+        }
+
+        async function sendQuickMsg(m) {
+            await fetch('https://angot.pythonanywhere.com/send_msg', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({msg: m, target: "ALL"})
+            });
+            alert("Message envoyé : " + m);
         }
 
         setInterval(refresh, 2000);

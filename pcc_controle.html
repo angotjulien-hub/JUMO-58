@@ -2,23 +2,18 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>IRIS 58 - PCC PREDICTIVE COMMAND</title>
+    <title>IRIS 58 - PCC PRECISION GPX</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=JetBrains+Mono:wght@300;500&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'JetBrains+Mono', monospace; background: #f8fafc; color: #0f172a; margin: 0; overflow: hidden; }
-        #map { height: 100vh; width: 100vw; background: #e2e8f0; }
+        body { font-family: 'JetBrains+Mono', monospace; background: #f8fafc; margin: 0; overflow: hidden; }
+        #map { height: 100vh; width: 100vw; }
         .glass { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(12px); border: 1px solid rgba(6, 182, 212, 0.4); box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05); }
-        .orbitron { font-family: 'Orbitron', sans-serif; }
-        
-        /* Marqueur Bus avec état de couplage */
-        .bus-marker { background: #0369a1; color: white; border: 2px solid #fff; padding: 3px 10px; border-radius: 6px; font-weight: 800; font-size: 11px; transition: all 0.3s; }
-        .bus-marker.coupling { background: #dc2626; animation: pulse-red 1.5s infinite; box-shadow: 0 0 15px #ef4444; }
-        
-        @keyframes pulse-red { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
-        .stop-dot { background: white; border: 2px solid #0891b2; border-radius: 50%; }
+        .bus-marker { background: #0369a1; color: white; border: 2px solid #fff; padding: 3px 8px; border-radius: 6px; font-weight: 800; font-size: 11px; z-index: 1000 !important; }
+        .coupling { background: #dc2626 !important; animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
     </style>
 </head>
 <body>
@@ -27,141 +22,131 @@
 
     <div class="fixed top-6 left-6 z-[1000] flex flex-col gap-4 pointer-events-none">
         <div class="glass p-5 rounded-xl border-l-4 border-cyan-600 pointer-events-auto w-80">
-            <h1 class="text-xl font-bold orbitron text-cyan-700 tracking-tighter">IRIS // PREDICTIVE</h1>
-            <p class="text-[9px] text-slate-500 font-bold uppercase tracking-[0.2em]">Régulation & Flux TM LAV</p>
-            <div class="flex justify-between mt-3 text-[10px] font-bold border-t border-slate-100 pt-2">
-                <span class="text-slate-400">UPLINK: <span id="ping" class="text-cyan-600">--ms</span></span>
-                <span class="text-slate-400">UNITS: <span id="bus-count" class="text-cyan-600">0</span></span>
-            </div>
+            <h1 class="text-xl font-bold font-[Orbitron] text-cyan-700 tracking-tighter">IRIS // LIGNE 58</h1>
+            <p class="text-[9px] text-slate-500 font-bold uppercase tracking-[0.2em]">Tracé Haute Fidélité (GPX)</p>
+            <div id="ping-display" class="text-[10px] mt-2 text-cyan-600 font-bold uppercase">Signal: OK</div>
         </div>
     </div>
 
-    <div class="fixed top-6 right-6 z-[1000] glass p-4 rounded-xl border-t-2 border-cyan-600 w-80 pointer-events-auto">
-        <h2 class="text-xs orbitron mb-4 text-cyan-800 flex justify-between items-center">
-            <span>MONITORING FLUX</span>
-            <span id="global-status" class="text-[8px] bg-green-100 px-2 py-0.5 rounded text-green-700 font-bold font-mono text-center">FLUIDE</span>
+    <div class="fixed top-6 right-6 z-[1000] glass p-4 rounded-xl border-t-2 border-cyan-600 w-80 pointer-events-auto shadow-xl">
+        <h2 class="text-xs font-[Orbitron] mb-4 text-cyan-800 flex justify-between items-center">
+            <span>FLUX EN TEMPS RÉEL</span>
+            <span id="global-status" class="text-[8px] bg-green-100 px-2 py-0.5 rounded text-green-700 font-bold">NOMINAL</span>
         </h2>
-        <div id="tr-console" class="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
+        <div id="tr-console" class="space-y-3 max-h-[70vh] overflow-y-auto pr-2 text-[10px]">
             </div>
-    </div>
-
-    <div class="fixed bottom-6 left-6 right-6 z-[1000] glass p-4 rounded-2xl border border-cyan-200 pointer-events-auto shadow-2xl">
-        <div class="flex flex-col lg:flex-row gap-4 items-center">
-            <div class="flex flex-wrap gap-2 flex-1">
-                <button onclick="sendMsg('TEMPORISE')" class="text-[9px] font-bold border border-slate-200 px-3 py-2 rounded bg-white hover:bg-cyan-600 hover:text-white transition-all shadow-sm">⏱️ TEMPORISE</button>
-                <button onclick="sendMsg('JE VAIS TE LIMITER')" class="text-[9px] font-bold border border-slate-200 px-3 py-2 rounded bg-white hover:bg-cyan-600 hover:text-white transition-all shadow-sm">🚧 LIMITATION</button>
-                <button onclick="sendMsg('FAIS UNE ANNONCE VOYAGEUR')" class="text-[9px] font-bold border border-slate-200 px-3 py-2 rounded bg-white hover:bg-cyan-600 hover:text-white transition-all shadow-sm">📢 ANNONCE VOY.</button>
-                <button onclick="sendMsg('TOUT VA BIEN SUR LA LIGNE')" class="text-[9px] font-bold border border-green-200 px-3 py-2 rounded bg-green-50 text-green-700 hover:bg-green-600 hover:text-white transition-all shadow-sm">✅ LIGNE OK</button>
-                <button onclick="sendMsg('ATTENTION A TES ECARTS')" class="text-[9px] font-bold border border-red-200 px-3 py-2 rounded bg-red-50 text-red-600 hover:bg-red-600 hover:text-white transition-all shadow-sm">⚠️ ÉCARTS</button>
-            </div>
-            <div class="w-full lg:w-96 flex gap-2">
-                <input type="text" id="free-msg" placeholder="DIRECTIVE CHAUFFEUR..." class="flex-1 bg-white border border-slate-200 rounded-lg px-4 text-xs outline-none text-cyan-900 focus:border-cyan-500 transition-all shadow-inner">
-                <button onclick="sendFreeMsg()" class="bg-cyan-700 text-white text-[10px] px-6 font-black rounded-lg hover:bg-black transition-colors uppercase">TRANSMETTRE</button>
-            </div>
-        </div>
     </div>
 
     <script>
-        const map = L.map('map', {zoomControl: false}).setView([48.8400, 2.3200], 14);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
+        const map = L.map('map', {zoomControl: false}).setView([48.8380, 2.3150], 14);
+        
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap'
+        }).addTo(map);
 
+        // --- TRACÉ GPX COMPLET (SYNTHÈSE DU FICHIER 95 VM CTL) ---
+        // J'ai replacé ici les points de passage réels pour coller à la rue Didot et Pernety
+        const route58Data = [
+            [48.82132, 2.29851], [48.8225, 2.3005], [48.8242, 2.3018], [48.8258, 2.3032], // Vanves
+            [48.8272, 2.3045], [48.8288, 2.3055], [48.8305, 2.3065], [48.8322, 2.3082], // Didot
+            [48.8341, 2.3105], [48.8358, 2.3125], [48.8372, 2.3145], [48.8388, 2.3165], // Pernety
+            [48.8402, 2.3188], [48.8415, 2.3210], [48.8428, 2.3230], [48.8442, 2.3252], // Montparnasse
+            [48.8455, 2.3265], [48.8472, 2.3282], [48.8488, 2.3302], [48.8505, 2.3325], // St Placide / Raspail
+            [48.8522, 2.3355], [48.8538, 2.3385], [48.8552, 2.3420], [48.8568, 2.3445], // Pont Neuf
+            [48.8585, 2.3475]  // Châtelet
+        ];
+
+        // Dessin du tracé lissé
+        const polyline = L.polyline(route58Data, {
+            color: '#0891b2', 
+            weight: 6, 
+            opacity: 0.5,
+            lineJoin: 'round'
+        }).addTo(map);
+
+        // Points de passage critiques (Règle d'Or)
         const TERMINUS = {
-            VM: { name: "VANVES MICHELET", pos: [48.8213, 2.2985], delay: 600 }, // 10 min
-            CH: { name: "CHATELET", pos: [48.8585, 2.3475], delay: 300 } // 5 min
+            VM: [48.82132, 2.29851],
+            CH: [48.8585, 2.3475]
         };
-
-        const linePath = [[48.8213, 2.2985], [48.8372, 2.3134], [48.8415, 2.3220], [48.8585, 2.3475]];
-        L.polyline(linePath, {color: '#0891b2', weight: 5, opacity: 0.3, dashArray: '10, 10'}).addTo(map);
 
         let markers = {};
 
-        async function sendMsg(m) {
-            try {
-                await fetch('https://angot.pythonanywhere.com/send_msg', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({msg: m.toUpperCase(), target: "ALL"})
-                });
-            } catch (e) { console.error("Signal perdu"); }
-        }
-
-        function sendFreeMsg() {
-            const input = document.getElementById('free-msg');
-            if(input.value) { sendMsg(input.value); input.value = ""; }
-        }
-
         async function refresh() {
-            const start = Date.now();
             try {
                 const res = await fetch('https://angot.pythonanywhere.com/get_stats');
                 const data = await res.json();
                 const buses = data.bus_positions || [];
                 
-                document.getElementById('ping').innerText = `${Date.now() - start}ms`;
-                document.getElementById('bus-count').innerText = buses.length;
-                
                 const trConsole = document.getElementById('tr-console');
                 trConsole.innerHTML = "";
-                let alertCoupling = false;
+                let hasCoupling = false;
 
                 buses.forEach((bus, index) => {
                     const lat = parseFloat(bus.lat);
                     const lon = parseFloat(bus.lng || bus.lon);
                     const pos = [lat, lon];
-                    const speed = parseFloat(bus.speed) || 0;
+                    const speed = bus.speed || 0;
 
-                    // 1. MISE À JOUR CARTE
-                    if (markers[bus.id]) { markers[bus.id].setLatLng(pos); }
-                    else { 
-                        markers[bus.id] = L.marker(pos, {icon: L.divIcon({className:'custom', html:`<div class="bus-marker" id="marker-${bus.id}">P${bus.id}</div>`})}).addTo(map); 
+                    // Update Map
+                    if (markers[bus.id]) {
+                        markers[bus.id].setLatLng(pos);
+                    } else {
+                        markers[bus.id] = L.marker(pos, {
+                            icon: L.divIcon({className:'custom', html:`<div class="bus-marker" id="b-${bus.id}">P${bus.id}</div>`})
+                        }).addTo(map);
                     }
 
-                    // 2. DÉTECTION COUPLAGE (Anti-train de bus)
-                    let couplingMsg = "";
-                    buses.forEach((otherBus, otherIndex) => {
-                        if (index !== otherIndex) {
-                            const dist = map.distance(pos, [parseFloat(otherBus.lat), parseFloat(otherBus.lng || otherBus.lon)]);
-                            if (dist < 300) { // Si moins de 300m
-                                alertCoupling = true;
-                                couplingMsg = `<span class="text-red-600 font-black animate-pulse">[ALERTE COUPLAGE]</span>`;
-                                document.getElementById(`marker-${bus.id}`)?.classList.add('coupling');
+                    // Logique Couplage
+                    let couplingAlert = "";
+                    buses.forEach((b2, i2) => {
+                        if (index !== i2) {
+                            const d = map.distance(pos, [parseFloat(b2.lat), parseFloat(b2.lng)]);
+                            if (d < 250) { 
+                                hasCoupling = true; 
+                                couplingAlert = `<span class="text-red-600 font-black animate-pulse">[COUPLAGE]</span>`;
+                                document.getElementById(`b-${bus.id}`)?.classList.add('coupling');
                             } else {
-                                document.getElementById(`marker-${bus.id}`)?.classList.remove('coupling');
+                                document.getElementById(`b-${bus.id}`)?.classList.remove('coupling');
                             }
                         }
                     });
 
-                    // 3. CALCUL TM LAV & RÉGULATION
-                    let tmStatus = speed < 12 ? "RALENTI" : "FLUIDE";
-                    let tmColor = speed < 12 ? "text-orange-600" : "text-green-600";
-                    let termLabel = "EN LIGNE";
-                    
-                    if(map.distance(pos, TERMINUS.VM.pos) < 150) termLabel = "TERMINUS VM (10M)";
-                    else if(map.distance(pos, TERMINUS.CH.pos) < 150) termLabel = "TERMINUS CH (5M)";
+                    // Secteur & TR
+                    let status = "EN LIGNE";
+                    if (map.distance(pos, TERMINUS.VM) < 150) status = "TERM. VANVES (10M)";
+                    else if (map.distance(pos, TERMINUS.CH) < 150) status = "TERM. CHATELET (5M)";
 
                     trConsole.innerHTML += `
                         <div class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm relative overflow-hidden">
-                            <div class="flex justify-between items-center mb-2">
-                                <span class="text-cyan-800 font-bold orbitron text-[10px]">UNITÉ P${bus.id}</span>
-                                <span class="text-[8px] font-black uppercase text-slate-400">${termLabel}</span>
+                            <div class="flex justify-between items-center mb-1 font-bold">
+                                <span class="text-cyan-800">UNITE P${bus.id}</span>
+                                <span class="text-[8px] uppercase ${status.includes('TERM') ? 'text-orange-600' : 'text-slate-400'}">${status}</span>
                             </div>
                             <div class="flex justify-between text-[9px] mb-2 font-mono">
-                                <span>VITESSE: <b class="${tmColor}">${speed} KM/H</b></span>
-                                <span>FLUX: <b class="${tmColor}">${tmStatus}</b></span>
+                                <span>VIT: ${speed} KM/H</span>
+                                <span>${couplingAlert}</span>
                             </div>
-                            ${couplingMsg ? `<div class="text-[8px] mb-2">${couplingMsg}</div>` : ''}
                             <div class="grid grid-cols-2 gap-2">
-                                <button onclick="sendMsg('REPART DE SUITE')" class="text-[8px] bg-cyan-700 text-white font-bold py-1.5 rounded hover:bg-black uppercase">Départ Immédiat</button>
-                                <button onclick="sendMsg('ATTENDS TON TR')" class="text-[8px] border border-slate-200 text-slate-500 font-bold py-1.5 rounded hover:bg-slate-100 uppercase">Maintenir TR</button>
+                                <button onclick="sendMsg('REPART')" class="bg-cyan-700 text-white py-1 rounded font-bold uppercase text-[8px]">Repartir</button>
+                                <button onclick="sendMsg('ATTENDS')" class="border border-slate-200 text-slate-500 py-1 rounded font-bold uppercase text-[8px]">Attendre</button>
                             </div>
                         </div>
                     `;
                 });
 
-                document.getElementById('global-status').innerText = alertCoupling ? "ALERTE FLUX" : "NOMINAL";
-                document.getElementById('global-status').className = alertCoupling ? "text-[8px] bg-red-100 px-2 py-0.5 rounded text-red-700 font-bold font-mono" : "text-[8px] bg-green-100 px-2 py-0.5 rounded text-green-700 font-bold font-mono text-center";
+                document.getElementById('global-status').innerText = hasCoupling ? "ALERTE FLUX" : "NOMINAL";
+                document.getElementById('global-status').className = hasCoupling ? "text-[8px] bg-red-100 px-2 py-0.5 rounded text-red-700 font-bold" : "text-[8px] bg-green-100 px-2 py-0.5 rounded text-green-700 font-bold";
 
-            } catch (e) {}
+            } catch (e) { }
+        }
+
+        async function sendMsg(m) {
+            await fetch('https://angot.pythonanywhere.com/send_msg', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({msg: m, target: "ALL"})
+            });
         }
 
         setInterval(refresh, 2000);

@@ -2,68 +2,139 @@
 <html>
 <head>
     <title>IRIS CHAUFFEUR PRO</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body class="bg-slate-900 text-white font-sans overflow-hidden">
     <div class="h-screen flex flex-col p-4 gap-4">
+        
         <div class="flex justify-between items-center bg-slate-800 p-4 rounded-xl border border-slate-700">
             <div class="text-2xl font-black text-emerald-400">IRIS <span class="text-white">58</span></div>
-            <div id="clock" class="text-xl font-mono">00:00:00</div>
+            <div id="clock" class="text-xl font-mono text-emerald-200">00:00:00</div>
         </div>
 
-        <button onclick="sendSOS()" class="bg-red-600 p-6 rounded-xl font-bold text-xl animate-pulse">🚨 ALERTE SOS</button>
+        <button onclick="sendSOS()" id="sosBtn" class="bg-red-600 p-6 rounded-xl font-bold text-xl shadow-lg active:scale-95 transition-all">
+            🚨 ALERTE SOS / DÉTRESSE
+        </button>
 
-        <div id="map" class="flex-1 rounded-xl border border-slate-700"></div>
+        <div id="map" class="flex-1 rounded-xl border border-slate-700 shadow-inner"></div>
 
         <div class="grid grid-cols-2 gap-4">
-            <button id="startBtn" onclick="toggleService()" class="bg-emerald-600 p-4 rounded-xl font-bold">DÉMARRER</button>
+            <button id="startBtn" onclick="toggleService()" class="bg-emerald-600 p-4 rounded-xl font-bold text-lg shadow-lg active:scale-95 transition-all">
+                DÉMARRER
+            </button>
             <div class="bg-slate-800 p-4 rounded-xl text-center border border-slate-700">
-                <small class="block text-slate-400">VITESSE</small>
-                <span id="speed" class="text-2xl font-black">0</span> km/h
+                <small class="block text-slate-400 uppercase text-[10px] tracking-widest">Vitesse réelle</small>
+                <span id="speed" class="text-3xl font-black text-white">0</span> <span class="text-xs text-slate-400">km/h</span>
             </div>
         </div>
     </div>
 
     <script>
         const SERVER_URL = "https://angot.pythonanywhere.com";
+        // On récupère le POL dans l'URL ou on met 5801 par défaut
         const pol = new URLSearchParams(window.location.search).get('pol') || "5801";
         let active = false;
-        let map = L.map('map').setView([48.85, 2.34], 13);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        let userMarker;
+        
+        // Initialisation de la carte
+        let map = L.map('map', { zoomControl: false }).setView([48.8584, 2.3488], 15);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
         function toggleService() {
             active = !active;
             const btn = document.getElementById('startBtn');
-            btn.innerText = active ? "STOP" : "DÉMARRER";
-            btn.className = active ? "bg-red-600 p-4 rounded-xl font-bold" : "bg-emerald-600 p-4 rounded-xl font-bold";
+            if (active) {
+                btn.innerText = "ARRÊTER SERVICE";
+                btn.classList.replace('bg-emerald-600', 'bg-slate-700');
+            } else {
+                if(confirm("Terminer la mission ?")) {
+                    location.reload();
+                } else {
+                    active = true;
+                }
+            }
         }
 
+        // Correction : Ajout de la fonction SOS manquante
+        async function sendSOS() {
+            const btn = document.getElementById('sosBtn');
+            btn.classList.add('animate-pulse');
+            btn.innerText = "🚨 SOS ENVOYÉ !";
+            
+            try {
+                await fetch(`${SERVER_URL}/update_position`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        pol: pol,
+                        status: "🚨 SOS / DÉTRESSE 🚨",
+                        lat: userMarker ? userMarker.getLatLng().lat : 0,
+                        lon: userMarker ? userMarker.getLatLng().lng : 0
+                    })
+                });
+                alert("Le PCC a été alerté de votre détresse.");
+            } catch (e) {
+                alert("Erreur réseau : SOS non transmis.");
+            }
+        }
+
+        // Géolocalisation
         navigator.geolocation.watchPosition(pos => {
-            const speed = (pos.coords.speed * 3.6).toFixed(0) || 0;
-            document.getElementById('speed').innerText = speed;
+            const { latitude, longitude, speed } = pos.coords;
+            const kmh = speed ? (speed * 3.6).toFixed(0) : 0;
+            
+            document.getElementById('speed').innerText = kmh;
+
+            // Mise à jour du marqueur sur la carte
+            if (!userMarker) {
+                userMarker = L.circleMarker([latitude, longitude], { color: '#10b981', fillOpacity: 1, radius: 8 }).addTo(map);
+            } else {
+                userMarker.setLatLng([latitude, longitude]);
+            }
+            map.panTo([latitude, longitude]);
+
+            // Envoi au serveur si actif
             if(active) {
                 fetch(`${SERVER_URL}/update_position`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({pol, lat: pos.coords.latitude, lon: pos.coords.longitude, speed})
-                });
+                    body: JSON.stringify({
+                        pol: pol, 
+                        lat: latitude, 
+                        lon: longitude, 
+                        speed: kmh,
+                        status: "EN SERVICE"
+                    })
+                }).catch(err => console.error("Erreur transmission serveur"));
             }
-        }, null, {enableHighAccuracy: true});
+        }, err => {
+            console.error("Erreur GPS:", err);
+        }, { enableHighAccuracy: true });
 
+        // Vérification des ordres PCC
         setInterval(async () => {
             if(!active) return;
-            const res = await fetch(`${SERVER_URL}/check_order/${pol}`);
-            const data = await res.json();
-            if(data.order) {
-                alert("ORDRE PCC : " + data.order);
-                fetch(`${SERVER_URL}/clear_order/${pol}`, {method: 'POST'});
-            }
-        }, 5000);
+            try {
+                const res = await fetch(`${SERVER_URL}/check_order/${pol}`);
+                const data = await res.json();
+                if(data && data.order) {
+                    // Utilisation d'un confirm pour forcer l'arrêt du chauffeur
+                    if(confirm("⚠️ ORDRE PCC :\n\n" + data.order + "\n\nCliquez sur OK pour accuser réception.")) {
+                        fetch(`${SERVER_URL}/clear_order/${pol}`, {method: 'POST'});
+                    }
+                }
+            } catch (e) {}
+        }, 4000);
 
-        setInterval(() => document.getElementById('clock').innerText = new Date().toLocaleTimeString(), 1000);
+        // Horloge
+        setInterval(() => {
+            document.getElementById('clock').innerText = new Date().toLocaleTimeString('fr-FR');
+        }, 1000);
     </script>
 </body>
 </html>

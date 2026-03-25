@@ -1,125 +1,87 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>IRIS - Poste de Commande Centralisé (PCC)</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        :root { --pcc-navy: #0f1a24; --ratp-blue: #0055a4; --danger: #dc3545; }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', sans-serif; background: #eaeff2; display: flex; height: 100vh; }
-
-        /* Sidebar : Liste des Bus */
-        .sidebar { width: 350px; background: var(--pcc-navy); color: white; display: flex; flex-direction: column; box-shadow: 4px 0 15px rgba(0,0,0,0.3); z-index: 10; }
-        .header-pcc { padding: 20px; background: var(--ratp-blue); text-align: center; }
-        .bus-list { flex: 1; overflow-y: auto; padding: 10px; }
-        .bus-card { background: rgba(255,255,255,0.1); margin-bottom: 10px; padding: 15px; border-radius: 8px; border-left: 5px solid #666; transition: 0.3s; }
-        .bus-card.active { border-left-color: #009640; background: rgba(0, 150, 64, 0.1); }
-        .bus-card.sos { border-left-color: var(--danger); background: rgba(220, 53, 69, 0.2); animation: flash 1s infinite; }
-
-        /* Main : Carte */
-        .map-container { flex: 1; position: relative; }
-        #map { height: 100%; width: 100%; }
-
-        /* Actions rapides */
-        .btn-order { background: #ffc107; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.8rem; margin-top: 10px; }
-        .btn-order:hover { background: #e0a800; }
-
-        @keyframes flash { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
-    </style>
+    <title>JUMO PERF - PCC Ligne 58</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
-<body>
+<body class="bg-black text-[#00f2ff] font-mono p-5">
+    <div class="grid grid-cols-4 gap-4">
+        <div class="col-span-1 border border-[#00f2ff] p-4 bg-slate-900">
+            <h1 class="text-xl font-black mb-4 underline">JUMO PERF v3.5</h1>
+            
+            <button onclick="downloadLogs()" class="w-full mb-4 bg-slate-800 border border-slate-700 text-[#00f2ff] text-xs font-black py-3 hover:bg-[#00f2ff] hover:text-black transition-all uppercase tracking-tighter">
+                <i class="fas fa-file-download mr-2"></i> Extraire Logs Performance
+            </button>
 
-<div class="sidebar">
-    <div class="header-pcc">
-        <h1>IRIS PCC v2</h1>
-        <p>Supervision Ligne 58</p>
-    </div>
-    <div id="busList" class="bus-list">
-        <p style="text-align:center; padding:20px; opacity:0.5;">En attente de connexion conducteurs...</p>
-    </div>
-</div>
-
-<div class="map-container">
-    <div id="map"></div>
-</div>
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-    const SERVER_URL = "https://angot.pythonanywhere.com";
-    let map;
-    let markers = {}; // Stocke les marqueurs par POL
-
-    function initMap() {
-        map = L.map('map').setView([48.842, 2.318], 13);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-        
-        // Rafraîchir les données toutes les 3 secondes
-        setInterval(refreshData, 3000);
-    }
-
-    async function refreshData() {
-        try {
-            const res = await fetch(`${SERVER_URL}/get_buses`);
-            const buses = await res.json();
-            updateSidebarAndMap(buses);
-        } catch (e) { console.error("Erreur synchro PCC"); }
-    }
-
-    function updateSidebarAndMap(buses) {
-        const listContainer = document.getElementById('busList');
-        listContainer.innerHTML = "";
-
-        Object.keys(buses).forEach(pol => {
-            const bus = buses[pol];
-            const isSOS = bus.status.includes("SOS");
-
-            // 1. Mise à jour de la Sidebar
-            const card = document.createElement('div');
-            card.className = `bus-card ${isSOS ? 'sos' : 'active'}`;
-            card.innerHTML = `
-                <div style="display:flex; justify-content:space-between;">
-                    <strong>POL ${pol}</strong>
-                    <span style="font-size:0.8rem;">${bus.speed} km/h</span>
+            <div id="bus-list" class="space-y-2 text-[10px]">
                 </div>
-                <div style="font-size:0.85rem; margin-top:5px; color:#ccc;">Statut: ${bus.status}</div>
-                <button class="btn-order" onclick="sendPromptOrder('${pol}')">⚠️ ENVOYER ORDRE</button>
-            `;
-            listContainer.appendChild(card);
+        </div>
 
-            // 2. Mise à jour de la Carte
-            if (bus.lat && bus.lon) {
-                if (markers[pol]) {
-                    markers[pol].setLatLng([bus.lat, bus.lon]);
-                } else {
-                    markers[pol] = L.marker([bus.lat, bus.lon]).addTo(map)
-                        .bindPopup(`<b>Bus POL ${pol}</b><br>${bus.status}`);
-                }
-                
-                // Si SOS, on ouvre le popup automatiquement et on centre
-                if (isSOS) {
-                    markers[pol].getPopup().setContent(`<b>🚨 ALERTE SOS POL ${pol} 🚨</b>`).openOn(map);
-                    map.setView([bus.lat, bus.lon], 16);
-                }
-            }
-        });
-    }
+        <div class="col-span-3 border border-[#00f2ff] h-[80vh] relative overflow-hidden bg-[url('https://cartocdn-gusc.global.ssl.fastly.net/base-dark/{z}/{x}/{y}.png')]">
+            <div id="map-container" class="absolute inset-0"></div>
+        </div>
+    </div>
 
-    async function sendPromptOrder(pol) {
-        const msg = prompt(`Instruction à envoyer au POL ${pol} :`, "REBROUSSAGE : MONTPARNASSE");
-        if (msg) {
-            await fetch(`${SERVER_URL}/send_order`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ pol: pol, instruction: msg })
-            });
-            alert("Ordre transmis au conducteur.");
+    <script>
+        const checkpoints = {
+            "VANVES": { lat: 48.8212, lng: 2.2870, time: "05:30" },
+            "MONTPARNASSE": { lat: 48.8380, lng: 2.3182, time: "05:52" },
+            "CHATELET": { lat: 48.8580, lng: 2.3475, time: "06:18" }
+        };
+
+        let lastLogged = {};
+
+        async function refreshPCC() {
+            try {
+                const res = await fetch('https://votre-pseudo.pythonanywhere.com/get_stats');
+                const data = await res.json();
+                const container = document.getElementById('bus-list');
+                container.innerHTML = "";
+
+                data.bus_positions.forEach(bus => {
+                    let status = "NOMINAL";
+                    let color = "text-[#00f2ff]";
+                    
+                    // Calcul de la performance
+                    for (let p in checkpoints) {
+                        let dist = Math.hypot(bus.lat - checkpoints[p].lat, bus.lng - checkpoints[p].lng);
+                        if (dist < 0.002) { // Proche d'un arrêt
+                            let now = new Date();
+                            let [thH, thM] = checkpoints[p].time.split(':').map(Number);
+                            let diff = (now.getHours()*60 + now.getMinutes()) - (thH*60 + thM);
+                            
+                            if (diff > 2) { status = `RETARD +${diff}m`; color = "text-red-500"; }
+                            if (diff < -1) { status = `AVANCE ${diff}m`; color = "text-yellow-500"; }
+                            
+                            // Log automatique vers le serveur
+                            if (!lastLogged[`${bus.id}-${p}`]) {
+                                fetch('https://votre-pseudo.pythonanywhere.com/log_perf', {
+                                    method: 'POST',
+                                    headers: {'Content-Type': 'application/json'},
+                                    body: JSON.stringify({ bus_id: bus.id, point: p, delay: diff })
+                                });
+                                lastLogged[`${bus.id}-${p}`] = true;
+                            }
+                        }
+                    }
+
+                    container.innerHTML += `
+                        <div class="p-2 border border-slate-700 bg-slate-800 ${color}">
+                            BUS ${bus.id} | ${status} | ${bus.speed}km/h
+                        </div>`;
+                });
+            } catch(e) {}
         }
-    }
 
-    initMap();
-</script>
+        async function downloadLogs() {
+            const res = await fetch('https://votre-pseudo.pythonanywhere.com/get_logs');
+            const logs = await res.json();
+            let csv = "Date,Bus,Point,Ecart\n" + logs.map(l => `${l.timestamp},${l.bus_id},${l.point},${l.delay}`).join("\n");
+            window.open("data:text/csv;charset=utf-8," + encodeURI(csv));
+        }
+
+        setInterval(refreshPCC, 2000);
+    </script>
 </body>
 </html>

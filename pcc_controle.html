@@ -2,54 +2,234 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IRIS | MISSION CONTROL CENTER</title>
-    
+    <title>JUMO PERF - LIGNE 58 APEX</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=JetBrains+Mono:wght@400;800&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --nasa-blue: #0052ff; 
-            --neon-cyan: #00f2ff; 
-            --warning-gold: #ff9d00;
-            --danger-red: #ff003c; 
-            --bg-black: #05070a; 
-            --panel-glass: rgba(13, 17, 23, 0.95);
+        :root { --jumo-cyan: #00f2ff; --jumo-alert: #ff004c; --jumo-bg: #05070a; }
+        body { font-family: 'JetBrains+Mono', monospace; background: var(--jumo-bg); color: #e2e8f0; margin: 0; overflow: hidden; }
+        #map { height: 100vh; width: 100vw; filter: grayscale(0.5) brightness(0.7) contrast(1.1); }
+        
+        /* Glassmorphism NASA Style */
+        .jumo-panel { 
+            background: rgba(10, 15, 25, 0.95); 
+            backdrop-filter: blur(25px); 
+            border: 1px solid rgba(0, 242, 255, 0.15);
+            box-shadow: 0 0 40px rgba(0,0,0,0.8);
+            border-radius: 4px;
         }
 
-        body, html { 
-            margin: 0; padding: 0; height: 100%; 
-            background: var(--bg-black); 
-            font-family: 'Inter', sans-serif; 
-            color: white; 
-            overflow: hidden; 
+        /* Marker Design */
+        .bus-marker {
+            background: #000; border: 2px solid var(--jumo-cyan); color: var(--jumo-cyan);
+            padding: 3px 10px; font-weight: 800; font-size: 11px; clip-path: polygon(10% 0, 100% 0, 90% 100%, 0% 100%);
+            box-shadow: 0 0 15px rgba(0, 242, 255, 0.5); text-align: center;
         }
 
-        /* --- HEADER NASA HUD --- */
-        .hud-top { 
-            height: 65px; background: rgba(0, 0, 0, 0.9); 
-            border-bottom: 2px solid var(--nasa-blue); 
-            display: flex; align-items: center; justify-content: space-between; 
-            padding: 0 30px; box-shadow: 0 4px 20px rgba(0, 82, 255, 0.2); 
-            z-index: 100;
+        .alert-active { 
+            border-color: var(--jumo-alert) !important; 
+            color: white !important; 
+            background: var(--jumo-alert) !important;
+            animation: master-blink 0.4s infinite alternate;
         }
-        .logo-box { font-family: 'Orbitron', sans-serif; letter-spacing: 4px; font-size: 1.6rem; }
-        .logo-box b { color: var(--nasa-blue); }
 
-        .telemetry-box { display: flex; gap: 40px; font-family: 'Orbitron', sans-serif; }
-        .telemetry-item { text-align: right; }
-        .telemetry-label { font-size: 0.6rem; color: #4b5563; display: block; }
-        .telemetry-value { color: var(--neon-cyan); font-size: 1.1rem; }
+        @keyframes master-blink { from { opacity: 1; transform: scale(1); } to { opacity: 0.6; transform: scale(1.1); } }
 
-        /* --- MAIN VIEWPORT --- */
-        .viewport { display: flex; height: calc(100vh - 65px); }
+        /* Status Pills */
+        .stat-pill { background: rgba(0, 242, 255, 0.05); border: 1px solid rgba(0, 242, 255, 0.2); }
+    </style>
+</head>
+<body>
 
-        /* --- SIDEBAR FLEET MONITOR --- */
-        .fleet-monitor { 
-            width: 400px; background: var(--panel-glass); 
-            border-right: 1px solid #1f2937; 
-            display: flex; flex-direction: column; 
-            box-shadow: 10px 0 30px rgba(0,0,0,0.5); z-index: 50;
+    <div id="map"></div>
+
+    <div class="fixed top-6 left-6 z-[1000] w-80 pointer-events-none">
+        <div class="jumo-panel p-6 border-l-4 border-[#00f2ff] pointer-events-auto">
+            <div class="flex items-center justify-between mb-2">
+                <h1 class="text-2xl font-[Orbitron] font-black italic tracking-tighter text-[#00f2ff]">JUMO PERF</h1>
+                <span class="text-[8px] bg-white/10 px-2 py-1 rounded">SYS_V3.0</span>
+            </div>
+            <p class="text-[9px] text-slate-500 uppercase tracking-[0.5em] mb-4 font-bold">Ligne 58 • Régulation Temps Réel</p>
+            <div class="grid grid-cols-2 gap-2">
+                <div class="stat-pill p-2">
+                    <p class="text-[7px] text-slate-500 uppercase">Latence Flux</p>
+                    <p id="net-latency" class="text-xs font-bold text-white">-- ms</p>
+                </div>
+                <div class="stat-pill p-2">
+                    <p class="text-[7px] text-slate-500 uppercase">Qualité GPS</p>
+                    <p class="text-xs font-bold text-green-400">MIL-STD</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="fixed bottom-6 left-6 z-[1000] w-80 pointer-events-none">
+        <div class="jumo-panel p-6 pointer-events-auto">
+            <h3 class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-4">Indicateurs Contractuels IDFM</h3>
+            <div class="space-y-4">
+                <div>
+                    <div class="flex justify-between text-[10px] mb-1 uppercase font-bold">
+                        <span>Offre Réalisée</span>
+                        <span id="prod-text" class="text-[#00f2ff]">--%</span>
+                    </div>
+                    <div class="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
+                        <div id="prod-bar" class="bg-[#00f2ff] h-full transition-all duration-700" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex justify-between text-[10px] mb-1 uppercase font-bold">
+                        <span>Ponctualité</span>
+                        <span id="ponct-text" class="text-green-400">--%</span>
+                    </div>
+                    <div class="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
+                        <div id="ponct-bar" class="bg-green-500 h-full transition-all duration-700" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="fixed top-6 right-6 z-[1000] w-96 jumo-panel flex flex-col max-h-[92vh] pointer-events-auto overflow-hidden">
+        <div class="p-5 border-b border-white/10 flex justify-between items-center bg-white/5">
+            <h2 class="text-xs font-[Orbitron] font-bold tracking-widest text-white uppercase">Unités en Service</h2>
+            <span id="unit-count" class="text-[10px] font-black bg-[#00f2ff] text-black px-3 py-1 rounded-sm">0 UNIT</span>
+        </div>
+
+        <div id="telemetry-list" class="flex-1 overflow-y-auto p-4 space-y-3">
+            </div>
+
+        <div class="p-6 bg-black/40 border-t border-white/10">
+            <h3 class="text-[9px] font-black text-[#00f2ff] uppercase mb-4 tracking-widest italic">// Liaison de Commande</h3>
+            <div class="space-y-4">
+                <select id="msg-target" class="w-full bg-slate-900 border border-white/10 rounded-sm p-3 text-[10px] text-white outline-none focus:border-[#00f2ff]">
+                    <option value="ALL">DIFFUSION GÉNÉRALE (TOUT LE RÉSEAU)</option>
+                    <option value="POLICE">SÉCURITÉ RÉSEAU / POLICE</option>
+                    <optgroup label="UNITÉS SPÉCIFIQUES" id="target-list"></optgroup>
+                </select>
+                
+                <input type="text" id="msg-input" placeholder="ENTRER ORDRE DE MISSION..." class="w-full bg-transparent border-b border-white/20 p-2 text-xs text-white outline-none focus:border-[#00f2ff] uppercase font-bold">
+
+                <div class="grid grid-cols-2 gap-2 pt-2">
+                    <button onclick="fastCmd('TR')" class="bg-amber-600/10 border border-amber-600/30 text-amber-500 text-[9px] font-black py-3 hover:bg-amber-600 hover:text-white transition-all uppercase">Régulation (TR)</button>
+                    <button onclick="fastCmd('DEP')" class="bg-cyan-600/10 border border-cyan-600/30 text-cyan-400 text-[9px] font-black py-3 hover:bg-cyan-600 hover:text-white transition-all uppercase">Départ Imméd.</button>
+                </div>
+                <button onclick="transmit()" class="w-full bg-[#00f2ff] text-black text-[10px] font-black py-4 hover:bg-white transition-all uppercase tracking-widest">Transmettre l'ordre</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 1. INIT MAP NASA STYLE
+        const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.8400, 2.3250], 14);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+
+        // 2. TRACÉS JUMO PERF
+        const pathA = [[48.827584,2.305412],[48.825589,2.301909],[48.823501,2.288277],[48.825031,2.291878],[48.823801,2.297645],[48.825194,2.301046],[48.824968,2.304202],[48.827332,2.305058],[48.826447,2.310447],[48.8263,2.313094],[48.827878,2.315378],[48.830723,2.319505],[48.832371,2.32058],[48.833978,2.321797],[48.836477,2.32272],[48.838083,2.322873],[48.840945,2.321701],[48.842874,2.323921],[48.842263,2.32865],[48.844761,2.328975],[48.846788,2.328543],[48.847022,2.330718],[48.848763,2.333345],[48.849223,2.33698],[48.849633,2.339064],[48.851626,2.338738],[48.854053,2.338817],[48.855886,2.340346],[48.858221,2.343151],[48.856914,2.347984],[48.857723,2.348081]];
+        const pathB = [[48.857726,2.348075],[48.855683,2.346094],[48.854111,2.343593],[48.85625,2.339505],[48.85585,2.340946],[48.854562,2.338007],[48.855286,2.337745],[48.852685,2.338699],[48.851281,2.338165],[48.849375,2.337561],[48.848251,2.332435],[48.84537,2.332244],[48.843723,2.330167],[48.84227,2.328652],[48.842936,2.323635],[48.84119,2.321502],[48.838764,2.322109],[48.836622,2.323261],[48.833611,2.324484],[48.831128,2.324011],[48.829669,2.322874],[48.827026,2.320322],[48.825134,2.318533],[48.823854,2.316807],[48.825281,2.310817],[48.826593,2.305427],[48.82559,2.301902],[48.823873,2.297374],[48.825297,2.293126],[48.823498,2.288279]];
+
+        L.polyline(pathA, {color: '#00f2ff', weight: 4, opacity: 0.7}).addTo(map);
+        L.polyline(pathB, {color: '#facc15', weight: 4, opacity: 0.3, dashArray: '12, 12'}).addTo(map);
+
+        let markers = {};
+
+        // 3. MOTEUR DE SURVEILLANCE
+        async function runJumoPerf() {
+            const t0 = Date.now();
+            try {
+                const res = await fetch('https://angot.pythonanywhere.com/get_stats');
+                const data = await res.json();
+                const buses = data.bus_positions || [];
+
+                document.getElementById('net-latency').innerText = (Date.now() - t0) + " MS";
+                document.getElementById('unit-count').innerText = `${buses.length} UNITS`;
+
+                const list = document.getElementById('telemetry-list');
+                const target = document.getElementById('target-list');
+                let listHtml = ""; let selectHtml = ""; let alerts = 0;
+
+                buses.forEach((bus, i) => {
+                    const lat = parseFloat(bus.lat);
+                    const lon = parseFloat(bus.lng || bus.lon);
+                    
+                    // Détection Proximité Critique
+                    let crit = false;
+                    buses.forEach((b2, j) => {
+                        if (i !== j && map.distance([lat, lon], [parseFloat(b2.lat), parseFloat(b2.lng)]) < 300) {
+                            crit = true; alerts++;
+                        }
+                    });
+
+                    // Map Update
+                    if (!markers[bus.id]) {
+                        markers[bus.id] = L.marker([lat, lon], {
+                            icon: L.divIcon({className:'custom', html:`<div class="bus-marker" id="u-${bus.id}">P${bus.id}</div>`})
+                        }).addTo(map);
+                    } else { markers[bus.id].setLatLng([lat, lon]); }
+
+                    const markerDom = document.getElementById(`u-${bus.id}`);
+                    if(crit) markerDom?.classList.add('alert-active');
+                    else markerDom?.classList.remove('alert-active');
+
+                    // Telemetry Card
+                    listHtml += `
+                        <div class="p-4 bg-white/5 border border-white/10 rounded flex justify-between items-center ${crit ? 'border-red-500 bg-red-500/10' : ''}">
+                            <div class="space-y-1">
+                                <p class="text-[10px] font-black text-[#00f2ff]">UNITÉ_EXPL_P${bus.id}</p>
+                                <p class="text-[8px] text-slate-500 font-mono tracking-widest">${bus.speed || 0} KM/H • SYNC_ACTIVE</p>
+                            </div>
+                            <div class="text-right">
+                                <span class="text-[8px] font-black px-2 py-1 ${crit ? 'text-red-500' : 'text-green-500'} uppercase">
+                                    ${crit ? '!! COUPLAGE !!' : 'PROD_OK'}
+                                </span>
+                            </div>
+                        </div>
+                    `;
+                    selectHtml += `<option value="${bus.id}">UNITÉ P${bus.id}</option>`;
+                });
+
+                list.innerHTML = listHtml;
+                target.innerHTML = selectHtml;
+
+                // KPI Dashboard
+                const prod = Math.min(100, (buses.length / 5) * 100);
+                document.getElementById('prod-text').innerText = Math.round(prod) + "%";
+                document.getElementById('prod-bar').style.width = prod + "%";
+                const ponct = 100 - (alerts * 4);
+                document.getElementById('ponct-text').innerText = ponct + "%";
+                document.getElementById('ponct-bar').style.width = ponct + "%";
+
+            } catch (e) {}
         }
+
+        // 4. MODULE DE TRANSMISSION
+        function fastCmd(type) {
+            const t = document.getElementById('msg-target').value;
+            const msg = type === 'TR' ? "REGULATION : ATTENTE (TR)" : "DEPART IMMEDIAT";
+            execute(t, msg);
+        }
+
+        function transmit() {
+            const t = document.getElementById('msg-target').value;
+            const m = document.getElementById('msg-input').value;
+            if(m) execute(t, m.toUpperCase());
+        }
+
+        async function execute(target, msg) {
+            try {
+                await fetch('https://angot.pythonanywhere.com/send_msg', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ msg: msg, target: target })
+                });
+                alert(`TRANSMISSION JUMO PERF RÉUSSIE ➔ [${target}]`);
+                document.getElementById('msg-input').value = "";
+            } catch (e) { alert("ERREUR LIAISON"); }
+        }
+
+        setInterval(runJumoPerf, 2000);
+        runJumoPerf();
+    </script>
+</body>
+</html>

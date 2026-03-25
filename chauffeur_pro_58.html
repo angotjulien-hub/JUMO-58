@@ -2,100 +2,144 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IRIS - Dashboard Conducteur L58</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>IRIS Pro - Ligne 58</title>
+    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <style>
-        :root { --ratp-green: #009640; --danger: #dc3545; --warning: #ffc107; }
+        :root { --primary: #009640; --dark: #1a2a3a; --warning: #ffc107; --danger: #dc3545; --slate: #f0f2f5; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', sans-serif; background: #f0f2f5; display: flex; height: 100vh; overflow: hidden; }
+        body { font-family: 'Inter', sans-serif; background: var(--slate); display: flex; height: 100vh; overflow: hidden; }
         
-        .sidebar { width: 280px; background: #1a2a3a; color: white; display: flex; flex-direction: column; }
+        /* Sidebar Design */
+        .sidebar { width: 280px; background: var(--dark); color: white; display: flex; flex-direction: column; box-shadow: 4px 0 10px rgba(0,0,0,0.1); }
         .logo-area { padding: 25px; border-bottom: 1px solid rgba(255,255,255,0.1); text-align: center; }
-        .driver-info { padding: 20px; background: rgba(0,0,0,0.2); margin: 15px; border-radius: 12px; text-align: center; }
-        .main-content { flex: 1; overflow-y: auto; padding: 20px; }
+        .driver-info { padding: 20px; background: rgba(255,255,255,0.05); margin: 15px; border-radius: 12px; text-align: center; border: 1px solid rgba(255,255,255,0.1); }
         
-        .top-bar { background: white; border-radius: 15px; padding: 20px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
-        .badge-service { padding: 8px 16px; border-radius: 25px; font-weight: bold; background: #666; color: white; }
-        .badge-active { background: var(--ratp-green); }
-        .badge-sos { background: var(--danger); animation: pulse 1s infinite; }
+        /* Main Content Area */
+        .main-content { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 20px; }
+        .top-bar { background: white; border-radius: 15px; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
         
-        .dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        .card { background: white; border-radius: 15px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
-        .card-full { grid-column: span 2; }
-        #map { height: 350px; border-radius: 12px; }
-        
-        .action-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
-        .action-btn { padding: 15px; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: 0.2s; }
-        .btn-primary { background: var(--ratp-green); color: white; }
-        .btn-danger { background: var(--danger); color: white; }
-        .btn-warning { background: var(--warning); color: #333; }
-        .btn-sos { background: black; color: white; grid-column: span 2; font-size: 1.2rem; }
-        
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center; }
-        .modal.active { display: flex; }
-        .modal-content { background: white; padding: 30px; border-radius: 20px; max-width: 400px; width: 90%; text-align: center; }
+        /* Status Badges */
+        .badge { padding: 8px 16px; border-radius: 25px; font-weight: 800; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; }
+        .status-off { background: #666; color: white; }
+        .status-on { background: var(--primary); color: white; }
+        .status-sos { background: var(--danger); color: white; animation: blink 1s infinite; }
 
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        /* Grid & Cards */
+        .dashboard-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px; }
+        .card { background: white; border-radius: 15px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); position: relative; }
+        .card h3 { font-size: 0.9rem; color: #666; margin-bottom: 15px; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+        
+        #map { height: 300px; border-radius: 12px; border: 1px solid #eee; }
+        
+        /* Table Style */
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; font-size: 0.7rem; color: #999; padding-bottom: 10px; }
+        td { padding: 12px 0; border-bottom: 1px solid #f5f5f5; font-size: 0.85rem; font-weight: 600; }
+        .delay-plus { color: var(--danger); }
+        .delay-minus { color: var(--warning); }
+
+        /* Action Buttons */
+        .btn { padding: 15px; border: none; border-radius: 12px; font-weight: 800; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .btn-start { background: var(--primary); color: white; width: 100%; }
+        .btn-sos { background: #000; color: white; width: 100%; font-size: 1rem; margin-bottom: 15px; }
+        .btn-action { background: var(--slate); color: var(--dark); border: 1px solid #ddd; }
+        .btn:active { transform: scale(0.98); }
+        .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        /* Modal */
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 9999; align-items: center; justify-content: center; padding: 20px; }
+        .modal.active { display: flex; }
+        .modal-content { background: white; padding: 30px; border-radius: 20px; width: 100%; max-width: 400px; text-align: center; }
+
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
     </style>
 </head>
 <body>
 
 <div class="sidebar">
-    <div class="logo-area"><h2>🚌 RATP IRIS</h2><p>Ligne 58 - Connecté</p></div>
+    <div class="logo-area">
+        <h2 style="letter-spacing: -1px;">RATP <span style="color:var(--primary)">IRIS</span></h2>
+        <p style="font-size: 0.7rem; opacity: 0.6;">SISTEER PERFORMANCE v4.0</p>
+    </div>
+    
     <div class="driver-info">
-        <i class="fas fa-user-circle fa-3x"></i>
-        <div style="margin-top:10px;"><strong id="driverName">Michel D.</strong><br><small id="polDisplay">POL: --</small></div>
+        <div style="width:60px; height:60px; background:var(--primary); border-radius:50%; margin:0 auto 10px; display:flex; align-items:center; justify-content:center; font-size:1.5rem;">
+            <i class="fas fa-user-tie"></i>
+        </div>
+        <strong id="driverName">Michel D.</strong><br>
+        <div id="polDisplay" style="font-family: monospace; background:rgba(0,0,0,0.3); padding:4px; border-radius:4px; margin-top:8px; font-size:0.9rem;">POL: ----</div>
+    </div>
+
+    <div style="padding: 20px; margin-top: auto;">
+        <div id="gpsStatus" style="font-size: 0.7rem; color: #888;">
+            <i class="fas fa-circle" id="gpsDot"></i> GPS: Recherche signal...
+        </div>
     </div>
 </div>
 
 <div class="main-content">
     <div class="top-bar">
-        <div class="badge-service" id="serviceBadge">HORS SERVICE</div>
-        <div style="font-size: 1.5rem; font-weight: bold;" id="currentTime">00:00:00</div>
-        <button class="action-btn btn-danger btn-sos" id="sosBtn" onclick="triggerSOS()">🚨 ALERTE SOS / DETRESSE</button>
+        <div class="badge status-off" id="serviceBadge">Hors Service</div>
+        <div id="currentTime" style="font-family: monospace; font-size: 1.8rem; font-weight: 800;">00:00:00</div>
+        <div style="text-align: right;">
+            <small style="color:#888; display:block;">VITESSE</small>
+            <span id="speedDisplay" style="font-weight:800; font-size:1.2rem;">0</span> <small>km/h</small>
+        </div>
     </div>
 
+    <button class="btn btn-sos" onclick="triggerSOS()">
+        <i class="fas fa-exclamation-triangle"></i> ALERTE SOS / DÉTRESSE
+    </button>
+
     <div class="dashboard-grid">
-        <div class="card card-full">
-            <h3><i class="fas fa-map-marker-alt"></i> Localisation Temps Réel</h3>
+        <div class="card" style="grid-column: span 2;">
+            <h3><i class="fas fa-map-marked-alt"></i> Itinéraire & Trafic</h3>
             <div id="map"></div>
         </div>
 
         <div class="card">
-            <h3><i class="fas fa-tasks"></i> Contrôle Service</h3>
-            <div class="action-buttons">
-                <button class="action-btn btn-primary" id="startBtn" onclick="startService()">Démarrer</button>
-                <button class="action-btn btn-danger" id="stopBtn" onclick="stopService()" disabled>Terminer</button>
-            </div>
+            <h3><i class="fas fa-clock"></i> Planning Ligne 58</h3>
+            <table>
+                <thead><tr><th>ARRÊT</th><th>THÉO.</th><th>DELTA</th></tr></thead>
+                <tbody>
+                    <tr><td>Michelet</td><td>05:30</td><td class="delay-plus">--</td></tr>
+                    <tr><td>Vanves</td><td>05:38</td><td>--</td></tr>
+                    <tr><td>Montparnasse</td><td>05:52</td><td class="delay-minus">--</td></tr>
+                    <tr><td>Châtelet</td><td>06:18</td><td>--</td></tr>
+                </tbody>
+            </table>
         </div>
 
         <div class="card">
-            <h3><i class="fas fa-exchange-alt"></i> Manœuvres</h3>
-            <div class="action-buttons">
-                <button class="action-btn btn-warning" onclick="requestManoeuvre('Sénat')">Sénat</button>
-                <button class="action-btn btn-warning" onclick="requestManoeuvre('Châtelet')">Châtelet</button>
+            <h3><i class="fas fa-cog"></i> Commandes</h3>
+            <button class="btn btn-start" id="mainActionBtn" onclick="toggleService()">DÉMARRER SERVICE</button>
+            
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px;">
+                <button class="btn btn-action" onclick="requestManoeuvre('Sénat')">Sénat</button>
+                <button class="btn btn-action" onclick="requestManoeuvre('Châtelet')">Châtelet</button>
             </div>
         </div>
     </div>
 </div>
 
-<div id="authModal" class="modal">
+<div id="pccModal" class="modal">
     <div class="modal-content">
-        <div id="modalBody"></div>
-        <div class="action-buttons">
-            <button class="action-btn btn-primary" id="confirmBtn">CONFIRMER</button>
-            <button class="action-btn btn-danger" onclick="closeModal()">ANNULER</button>
-        </div>
+        <div style="color:var(--danger); font-size: 3rem; margin-bottom: 10px;"><i class="fas fa-broadcast-tower"></i></div>
+        <h2 style="margin-bottom:10px;">ORDRE PCC</h2>
+        <div id="modalBody" style="font-size: 1.2rem; font-weight: 600; background: #f8f8f8; padding: 15px; border-radius: 10px; margin-bottom: 20px;"></div>
+        <button class="btn btn-start" onclick="closeModal()">REÇU / CONFIRMÉ</button>
     </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
     const SERVER_URL = "https://angot.pythonanywhere.com";
-    const pol = new URLSearchParams(window.location.search).get('pol') || "5899";
+    const pol = new URLSearchParams(window.location.search).get('pol') || "5801";
     let serviceActive = false;
     let map, userMarker;
 
@@ -103,82 +147,115 @@
 
     // --- INITIALISATION ---
     function init() {
-        map = L.map('map').setView([48.842, 2.318], 14);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-        setInterval(() => { document.getElementById('currentTime').innerText = new Date().toLocaleTimeString(); }, 1000);
+        map = L.map('map', { zoomControl: false }).setView([48.842, 2.318], 15);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
+        
+        setInterval(() => { 
+            document.getElementById('currentTime').innerText = new Date().toLocaleTimeString('fr-FR'); 
+        }, 1000);
+
         startTracking();
-        setInterval(checkOrders, 5000);
+        setInterval(checkOrders, 4000); // Check PCC orders every 4s
     }
 
-    // --- COMMUNICATION SERVEUR ---
+    // --- GPS & TRANSMISSION ---
     function startTracking() {
+        if (!navigator.geolocation) return;
+
         navigator.geolocation.watchPosition(async (pos) => {
-            const { latitude, longitude, speed } = pos.coords;
+            const { latitude, longitude, speed, accuracy } = pos.coords;
+            const kmh = speed ? (speed * 3.6).toFixed(0) : 0;
+            
+            // UI Updates
+            document.getElementById('speedDisplay').innerText = kmh;
+            document.getElementById('gpsDot').style.color = accuracy < 20 ? '#009640' : '#ffc107';
+            document.getElementById('gpsStatus').innerHTML = `<i class="fas fa-circle"></i> GPS Précision: ${accuracy.toFixed(0)}m`;
+
             updateMap(latitude, longitude);
             
             if (serviceActive) {
-                await fetch(`${SERVER_URL}/update_position`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ pol, lat: latitude, lon: longitude, speed: speed || 0, status: "EN SERVICE" })
-                });
+                try {
+                    await fetch(`${SERVER_URL}/update_position`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ 
+                            pol: pol, 
+                            lat: latitude, 
+                            lon: longitude, 
+                            speed: kmh, 
+                            status: "EN SERVICE" 
+                        })
+                    });
+                } catch (e) { console.error("Liaison perdue"); }
             }
         }, null, { enableHighAccuracy: true });
     }
 
-    async function checkOrders() {
-        if (!serviceActive) return;
-        const res = await fetch(`${SERVER_URL}/check_order/${pol}`);
-        const data = await res.json();
-        if (data.order) {
-            showModal(`⚠️ ORDRE PCC :<br><b style="font-size:1.2rem;">${data.order}</b>`, async () => {
-                await fetch(`${SERVER_URL}/clear_order/${pol}`, { method: 'POST' });
-                closeModal();
-            });
+    // --- GESTION SERVICE ---
+    function toggleService() {
+        serviceActive = !serviceActive;
+        const btn = document.getElementById('mainActionBtn');
+        const badge = document.getElementById('serviceBadge');
+
+        if (serviceActive) {
+            btn.innerText = "TERMINER SERVICE";
+            btn.style.background = "var(--danger)";
+            badge.className = "badge status-on";
+            badge.innerText = "Service Actif";
+        } else {
+            if(confirm("Confirmer la fin de service ?")) location.reload();
+            serviceActive = true; // Empêche le reset si cancel
         }
     }
 
-    // --- ACTIONS INTERFACE ---
-    function startService() {
-        serviceActive = true;
-        document.getElementById('serviceBadge').className = 'badge-service badge-active';
-        document.getElementById('serviceBadge').innerText = "SERVICE ACTIF";
-        document.getElementById('startBtn').disabled = true;
-        document.getElementById('stopBtn').disabled = false;
-    }
-
+    // --- ALERTES & ORDRES ---
     async function triggerSOS() {
-        document.getElementById('serviceBadge').className = 'badge-service badge-sos';
-        document.getElementById('serviceBadge').innerText = "SOS ÉMIS";
+        const badge = document.getElementById('serviceBadge');
+        badge.className = "badge status-sos";
+        badge.innerText = "SOS ÉMIS";
+        
         await fetch(`${SERVER_URL}/update_position`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ pol, status: "🚨 SOS / DÉTRESSE 🚨" })
+            body: JSON.stringify({ pol: pol, status: "🚨 SOS / DÉTRESSE 🚨" })
         });
-        alert("ALERTE SOS ENVOYÉE AU PCC");
+        alert("ALERTE CRITIQUE ENVOYÉE AU PCC");
+    }
+
+    async function checkOrders() {
+        if (!serviceActive) return;
+        try {
+            const res = await fetch(`${SERVER_URL}/check_order/${pol}`);
+            const data = await res.json();
+            if (data.order) {
+                document.getElementById('modalBody').innerHTML = data.order;
+                document.getElementById('pccModal').classList.add('active');
+                // Alerte sonore optionnelle
+                window.navigator.vibrate([200, 100, 200]);
+            }
+        } catch (e) {}
     }
 
     function requestManoeuvre(lieu) {
-        showModal(`Demande de retournement : <b>${lieu}</b>.<br>Avez-vous l'accord radio ?`, () => {
-            alert("Manœuvre enregistrée");
-            closeModal();
-        });
+        if(confirm(`Demander manœuvre à ${lieu} ?`)) {
+            alert("Demande transmise au régulateur.");
+        }
     }
 
     // --- UTILS ---
     function updateMap(lat, lng) {
-        if (userMarker) map.removeLayer(userMarker);
-        userMarker = L.marker([lat, lng]).addTo(map);
+        if (!userMarker) {
+            userMarker = L.circleMarker([lat, lng], { radius: 8, color: '#fff', fillColor: '#009640', fillOpacity: 1, weight: 3 }).addTo(map);
+        } else {
+            userMarker.setLatLng([lat, lng]);
+        }
         map.panTo([lat, lng]);
     }
 
-    function showModal(html, onConfirm) {
-        document.getElementById('modalBody').innerHTML = html;
-        document.getElementById('confirmBtn').onclick = onConfirm;
-        document.getElementById('authModal').classList.add('active');
+    function closeModal() {
+        document.getElementById('pccModal').classList.remove('active');
+        fetch(`${SERVER_URL}/clear_order/${pol}`, { method: 'POST' });
     }
-
-    function closeModal() { document.getElementById('authModal').classList.remove('active'); }
 
     init();
 </script>

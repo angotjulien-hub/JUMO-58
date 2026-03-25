@@ -9,32 +9,46 @@ root_dir = os.path.dirname(base_dir)
 template_dir = os.path.join(root_dir, 'templates')
 
 app = Flask(__name__, template_folder=template_dir)
-CORS(app)
 
-# Base de données en temps réel (Mémoire vive)
+# Autorise GitHub et les autres domaines à interroger ton serveur
+CORS(app, resources={r"/*": {"origins": "*"}})
+
+# Base de données en temps réel
 iris_db = {
-    "buses": {},  # Stockage des positions et statuts
-    "orders": {}  # Ordres envoyés aux chauffeurs
+    "buses": {},  
+    "orders": {}  
 }
 
 @app.route('/')
 def home():
-    """Affiche la console de contrôle"""
     return render_template('pcc_controle.html')
+
+# --- NOUVELLE ROUTE LOGIN ---
+@app.route('/login', methods=['POST'])
+def login():
+    try:
+        data = request.get_json()
+        username = data.get('username')
+        password = data.get('password')
+        
+        # Identifiants de test (à modifier selon tes besoins)
+        if username == "admin" and password == "1234":
+            return jsonify({"status": "success"}), 200
+        else:
+            return jsonify({"status": "error", "message": "Accès refusé"}), 401
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
 
 @app.route('/get_pcc_data')
 def get_pcc_data():
-    """Envoie toute la base de données au format JSON au PCC"""
     return jsonify(iris_db)
 
 @app.route('/sync', methods=['POST'])
 def sync():
-    """REÇOIT les données du chauffeur et ENVOIE les ordres en retour (Boucle unique)"""
     try:
         data = request.get_json()
         pol = str(data.get('pol', '5801'))
 
-        # 1. Mise à jour de la position du bus
         iris_db["buses"][pol] = {
             "lat": float(data.get('lat')),
             "lon": float(data.get('lon')),
@@ -43,7 +57,6 @@ def sync():
             "last_seen": datetime.now().strftime("%H:%M:%S")
         }
 
-        # 2. Vérification s'il y a un ordre pour ce bus
         order = iris_db["orders"].get(pol, None)
         
         return jsonify({
@@ -56,10 +69,11 @@ def sync():
 
 @app.route('/send_order', methods=['POST'])
 def send_order():
-    """Le PCC envoie un ordre ici"""
     data = request.get_json()
     pol = data.get('pol')
-    instruction = data.get('instruction')
+    # Harmonisation : on accepte 'instruction' ou 'msg'
+    instruction = data.get('instruction') or data.get('msg')
+    
     if pol:
         iris_db["orders"][pol] = instruction
         return jsonify({"status": "sent"}), 200
@@ -67,7 +81,6 @@ def send_order():
 
 @app.route('/clear_order/<pol>', methods=['POST'])
 def clear_order(pol):
-    """Le chauffeur confirme avoir lu l'ordre"""
     iris_db["orders"].pop(pol, None)
     return jsonify({"status": "cleared"})
 

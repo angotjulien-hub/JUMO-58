@@ -9,10 +9,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=JetBrains+Mono:wght@400;800&display=swap" rel="stylesheet">
     <style>
         :root { --jumo-cyan: #00f2ff; --jumo-alert: #ff004c; --jumo-bg: #05070a; }
-        body { font-family: 'JetBrains+Mono', monospace; background: var(--jumo-bg); color: #e2e8f0; margin: 0; overflow: hidden; }
+        body { font-family: 'JetBrains Mono', monospace; background: var(--jumo-bg); color: #e2e8f0; margin: 0; overflow: hidden; }
         #map { height: 100vh; width: 100vw; filter: grayscale(0.5) brightness(0.7) contrast(1.1); }
         
-        /* Glassmorphism NASA Style */
         .jumo-panel { 
             background: rgba(10, 15, 25, 0.95); 
             backdrop-filter: blur(25px); 
@@ -21,11 +20,10 @@
             border-radius: 4px;
         }
 
-        /* Marker Design */
         .bus-marker {
             background: #000; border: 2px solid var(--jumo-cyan); color: var(--jumo-cyan);
             padding: 3px 10px; font-weight: 800; font-size: 11px; clip-path: polygon(10% 0, 100% 0, 90% 100%, 0% 100%);
-            box-shadow: 0 0 15px rgba(0, 242, 255, 0.5); text-align: center;
+            box-shadow: 0 0 15px rgba(0, 242, 255, 0.5); text-align: center; white-space: nowrap;
         }
 
         .alert-active { 
@@ -36,8 +34,6 @@
         }
 
         @keyframes master-blink { from { opacity: 1; transform: scale(1); } to { opacity: 0.6; transform: scale(1.1); } }
-
-        /* Status Pills */
         .stat-pill { background: rgba(0, 242, 255, 0.05); border: 1px solid rgba(0, 242, 255, 0.2); }
     </style>
 </head>
@@ -104,8 +100,7 @@
             <h3 class="text-[9px] font-black text-[#00f2ff] uppercase mb-4 tracking-widest italic">// Liaison de Commande</h3>
             <div class="space-y-4">
                 <select id="msg-target" class="w-full bg-slate-900 border border-white/10 rounded-sm p-3 text-[10px] text-white outline-none focus:border-[#00f2ff]">
-                    <option value="ALL">DIFFUSION GÉNÉRALE (TOUT LE RÉSEAU)</option>
-                    <option value="POLICE">SÉCURITÉ RÉSEAU / POLICE</option>
+                    <option value="ALL">DIFFUSION GÉNÉRALE</option>
                     <optgroup label="UNITÉS SPÉCIFIQUES" id="target-list"></optgroup>
                 </select>
                 
@@ -121,63 +116,60 @@
     </div>
 
     <script>
-        // 1. INIT MAP NASA STYLE
+        const SERVER_URL = "https://angot.pythonanywhere.com";
         const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.8400, 2.3250], 14);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
-        // 2. TRACÉS JUMO PERF
+        // Tracés Ligne 58
         const pathA = [[48.827584,2.305412],[48.825589,2.301909],[48.823501,2.288277],[48.825031,2.291878],[48.823801,2.297645],[48.825194,2.301046],[48.824968,2.304202],[48.827332,2.305058],[48.826447,2.310447],[48.8263,2.313094],[48.827878,2.315378],[48.830723,2.319505],[48.832371,2.32058],[48.833978,2.321797],[48.836477,2.32272],[48.838083,2.322873],[48.840945,2.321701],[48.842874,2.323921],[48.842263,2.32865],[48.844761,2.328975],[48.846788,2.328543],[48.847022,2.330718],[48.848763,2.333345],[48.849223,2.33698],[48.849633,2.339064],[48.851626,2.338738],[48.854053,2.338817],[48.855886,2.340346],[48.858221,2.343151],[48.856914,2.347984],[48.857723,2.348081]];
-        const pathB = [[48.857726,2.348075],[48.855683,2.346094],[48.854111,2.343593],[48.85625,2.339505],[48.85585,2.340946],[48.854562,2.338007],[48.855286,2.337745],[48.852685,2.338699],[48.851281,2.338165],[48.849375,2.337561],[48.848251,2.332435],[48.84537,2.332244],[48.843723,2.330167],[48.84227,2.328652],[48.842936,2.323635],[48.84119,2.321502],[48.838764,2.322109],[48.836622,2.323261],[48.833611,2.324484],[48.831128,2.324011],[48.829669,2.322874],[48.827026,2.320322],[48.825134,2.318533],[48.823854,2.316807],[48.825281,2.310817],[48.826593,2.305427],[48.82559,2.301902],[48.823873,2.297374],[48.825297,2.293126],[48.823498,2.288279]];
-
         L.polyline(pathA, {color: '#00f2ff', weight: 4, opacity: 0.7}).addTo(map);
-        L.polyline(pathB, {color: '#facc15', weight: 4, opacity: 0.3, dashArray: '12, 12'}).addTo(map);
 
         let markers = {};
 
-        // 3. MOTEUR DE SURVEILLANCE
         async function runJumoPerf() {
             const t0 = Date.now();
             try {
-                const res = await fetch('https://angot.pythonanywhere.com/get_stats');
-                const data = await res.json();
-                const buses = data.bus_positions || [];
+                const res = await fetch(`${SERVER_URL}/get_buses`);
+                const busesObj = await res.json();
+                const busArray = Object.values(busesObj);
 
                 document.getElementById('net-latency').innerText = (Date.now() - t0) + " MS";
-                document.getElementById('unit-count').innerText = `${buses.length} UNITS`;
+                document.getElementById('unit-count').innerText = `${busArray.length} UNITS`;
 
                 const list = document.getElementById('telemetry-list');
                 const target = document.getElementById('target-list');
                 let listHtml = ""; let selectHtml = ""; let alerts = 0;
 
-                buses.forEach((bus, i) => {
+                busArray.forEach((bus, i) => {
+                    const pol = bus.pol || i;
                     const lat = parseFloat(bus.lat);
-                    const lon = parseFloat(bus.lng || bus.lon);
+                    const lon = parseFloat(bus.lon);
                     
-                    // Détection Proximité Critique
+                    // Détection Couplage (< 300m)
                     let crit = false;
-                    buses.forEach((b2, j) => {
-                        if (i !== j && map.distance([lat, lon], [parseFloat(b2.lat), parseFloat(b2.lng)]) < 300) {
+                    busArray.forEach((b2, j) => {
+                        if (i !== j && map.distance([lat, lon], [parseFloat(b2.lat), parseFloat(b2.lon)]) < 300) {
                             crit = true; alerts++;
                         }
                     });
 
-                    // Map Update
-                    if (!markers[bus.id]) {
-                        markers[bus.id] = L.marker([lat, lon], {
-                            icon: L.divIcon({className:'custom', html:`<div class="bus-marker" id="u-${bus.id}">P${bus.id}</div>`})
+                    // Update Map
+                    if (!markers[pol]) {
+                        markers[pol] = L.marker([lat, lon], {
+                            icon: L.divIcon({className:'custom', html:`<div class="bus-marker" id="u-${pol}">${pol}</div>`})
                         }).addTo(map);
-                    } else { markers[bus.id].setLatLng([lat, lon]); }
+                    } else { markers[pol].setLatLng([lat, lon]); }
 
-                    const markerDom = document.getElementById(`u-${bus.id}`);
+                    const markerDom = document.getElementById(`u-${pol}`);
                     if(crit) markerDom?.classList.add('alert-active');
                     else markerDom?.classList.remove('alert-active');
 
-                    // Telemetry Card
+                    // List Item
                     listHtml += `
                         <div class="p-4 bg-white/5 border border-white/10 rounded flex justify-between items-center ${crit ? 'border-red-500 bg-red-500/10' : ''}">
                             <div class="space-y-1">
-                                <p class="text-[10px] font-black text-[#00f2ff]">UNITÉ_EXPL_P${bus.id}</p>
-                                <p class="text-[8px] text-slate-500 font-mono tracking-widest">${bus.speed || 0} KM/H • SYNC_ACTIVE</p>
+                                <p class="text-[10px] font-black text-[#00f2ff]">UNITÉ_P${pol}</p>
+                                <p class="text-[8px] text-slate-500 font-mono tracking-widest">${bus.speed || 0} KM/H • ${bus.status}</p>
                             </div>
                             <div class="text-right">
                                 <span class="text-[8px] font-black px-2 py-1 ${crit ? 'text-red-500' : 'text-green-500'} uppercase">
@@ -186,24 +178,23 @@
                             </div>
                         </div>
                     `;
-                    selectHtml += `<option value="${bus.id}">UNITÉ P${bus.id}</option>`;
+                    selectHtml += `<option value="${pol}">UNITÉ P${pol}</option>`;
                 });
 
                 list.innerHTML = listHtml;
                 target.innerHTML = selectHtml;
 
-                // KPI Dashboard
-                const prod = Math.min(100, (buses.length / 5) * 100);
+                // KPIs
+                const prod = Math.min(100, (busArray.length / 5) * 100);
                 document.getElementById('prod-text').innerText = Math.round(prod) + "%";
                 document.getElementById('prod-bar').style.width = prod + "%";
-                const ponct = 100 - (alerts * 4);
+                const ponct = Math.max(0, 100 - (alerts * 5));
                 document.getElementById('ponct-text').innerText = ponct + "%";
                 document.getElementById('ponct-bar').style.width = ponct + "%";
 
-            } catch (e) {}
+            } catch (e) { console.error("Flux interrompu"); }
         }
 
-        // 4. MODULE DE TRANSMISSION
         function fastCmd(type) {
             const t = document.getElementById('msg-target').value;
             const msg = type === 'TR' ? "REGULATION : ATTENTE (TR)" : "DEPART IMMEDIAT";
@@ -218,17 +209,17 @@
 
         async function execute(target, msg) {
             try {
-                await fetch('https://angot.pythonanywhere.com/send_msg', {
+                await fetch(`${SERVER_URL}/send_order`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ msg: msg, target: target })
+                    body: JSON.stringify({ instruction: msg, pol: target })
                 });
-                alert(`TRANSMISSION JUMO PERF RÉUSSIE ➔ [${target}]`);
+                alert(`ORDRE TRANSMIS ➔ [${target}]`);
                 document.getElementById('msg-input').value = "";
             } catch (e) { alert("ERREUR LIAISON"); }
         }
 
-        setInterval(runJumoPerf, 2000);
+        setInterval(runJumoPerf, 3000);
         runJumoPerf();
     </script>
 </body>

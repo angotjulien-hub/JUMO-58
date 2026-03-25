@@ -1,61 +1,50 @@
-from flask import Flask, request, jsonify
+from flask import Flask, render_template, jsonify, request
 from flask_cors import CORS
-from datetime import datetime
+import os
 
-app = Flask(__name__)
-CORS(app)
+# --- CONFIGURATION DES CHEMINS ---
+base_dir = os.path.dirname(os.path.abspath(__file__))
+root_dir = os.path.dirname(base_dir)
+# Flask cherchera le HTML dans /home/angot/angotjulien-hub/templates/
+template_dir = os.path.join(root_dir, 'templates')
 
-# Bases de données en mémoire
-bus_data = {}
-pcc_orders = {}
-performance_logs = []
+app = Flask(__name__, template_folder=template_dir)
+CORS(app) # Autorise la connexion depuis ton GitHub JUMO-58
+
+# Base de données en temps réel (Mémoire vive)
+iris_db = {
+    "buses": {},  # Stockage des POL (ex: 5801)
+    "orders": {}  # Ordres envoyés aux chauffeurs
+}
 
 @app.route('/')
-def health_check():
-    return "IRIS SERVER V2.6 - OPERATIONNEL"
+def home():
+    """Affiche la carte de contrôle (PCC)"""
+    return render_template('pcc_controle.html')
 
-@app.route('/update_position', methods=['POST'])
-def update_position():
-    data = request.get_json()
-    pol = data.get('pol')
-    if pol:
-        bus_data[pol] = {
-            "lat": data.get('lat'),
-            "lon": data.get('lon'),
+@app.route('/get_pcc_data')
+def get_pcc_data():
+    """Envoie les positions au format JSON au PCC"""
+    return jsonify(iris_db)
+
+@app.route('/sync', methods=['POST'])
+def sync():
+    """REÇOIT les données du fichier chauffeur_pro_58.html"""
+    try:
+        data = request.get_json()
+        pol = str(data.get('pol', '5800'))
+        
+        # Mise à jour de la base de données
+        iris_db["buses"][pol] = {
+            "lat": float(data.get('lat')),
+            "lon": float(data.get('lon')),
+            "status": data.get('status', 'EN LIGNE'),
             "speed": data.get('speed', 0),
-            "status": data.get('status', 'EN SERVICE'),
-            "last_seen": datetime.now().strftime("%H:%M:%S")
+            "line": "58"
         }
-        return jsonify({"status": "success"}), 200
-    return jsonify({"status": "error"}), 400
-
-@app.route('/get_buses', methods=['GET'])
-def get_buses():
-    return jsonify(bus_data)
-
-@app.route('/send_order', methods=['POST'])
-def send_order():
-    data = request.get_json()
-    pol = data.get('pol')
-    instruction = data.get('instruction')
-    pcc_orders[pol] = instruction
-    return jsonify({"status": "sent"}), 200
-
-@app.route('/check_order/<pol>', methods=['GET'])
-def check_order(pol):
-    return jsonify({"order": pcc_orders.get(pol)})
-
-@app.route('/clear_order/<pol>', methods=['POST'])
-def clear_order(pol):
-    pcc_orders.pop(pol, None)
-    return jsonify({"status": "cleared"})
-
-@app.route('/log_perf', methods=['POST'])
-def log_perf():
-    data = request.get_json()
-    performance_logs.append(data)
-    if len(performance_logs) > 500: performance_logs.pop(0)
-    return jsonify({"status": "logged"})
+        return jsonify({"status": "ok", "msg": "Position synchronisée"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
 
 if __name__ == '__main__':
     app.run(debug=True)

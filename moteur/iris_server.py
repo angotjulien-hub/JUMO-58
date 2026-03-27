@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, make_response
 from flask_cors import CORS
 import os
 from datetime import datetime
@@ -10,34 +10,46 @@ template_dir = os.path.join(root_dir, 'templates')
 
 app = Flask(__name__, template_folder=template_dir)
 
-# Autorise GitHub et les autres domaines à interroger ton serveur
-CORS(app, resources={r"/*": {"origins": "*"}})
+# Configuration CORS ultra-large pour autoriser GitHub Pages
+CORS(app, resources={r"/*": {
+    "origins": "*",
+    "methods": ["GET", "POST", "OPTIONS"],
+    "allow_headers": ["Content-Type", "Authorization"]
+}})
 
-# Base de données en temps réel
+# Base de données en mémoire
 iris_db = {
     "buses": {},  
     "orders": {}  
 }
 
+# Gestion explicite des requêtes de sécurité (Preflight OPTIONS)
+@app.before_request
+def handle_options():
+    if request.method == 'OPTIONS':
+        res = make_response()
+        res.headers['Access-Control-Allow-Origin'] = '*'
+        res.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+        res.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        return res
+
 @app.route('/')
 def home():
     return render_template('pcc_controle.html')
 
-# --- NOUVELLE ROUTE LOGIN ---
 @app.route('/login', methods=['POST'])
 def login():
-    try:
-        data = request.get_json()
-        username = data.get('username')
-        password = data.get('password')
+    data = request.get_json()
+    if not data:
+        return jsonify({"status": "error", "message": "No data received"}), 400
         
-        # Identifiants de test (à modifier selon tes besoins)
-        if username == "admin" and password == "1234":
-            return jsonify({"status": "success"}), 200
-        else:
-            return jsonify({"status": "error", "message": "Accès refusé"}), 401
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 400
+    username = data.get('username')
+    password = data.get('password')
+    
+    # Tes identifiants
+    if username == "admin" and password == "1234":
+        return jsonify({"status": "success"}), 200
+    return jsonify({"status": "error", "message": "Identifiants incorrects"}), 401
 
 @app.route('/get_pcc_data')
 def get_pcc_data():
@@ -48,7 +60,6 @@ def sync():
     try:
         data = request.get_json()
         pol = str(data.get('pol', '5801'))
-
         iris_db["buses"][pol] = {
             "lat": float(data.get('lat')),
             "lon": float(data.get('lon')),
@@ -56,14 +67,8 @@ def sync():
             "status": data.get('status', 'EN SERVICE'),
             "last_seen": datetime.now().strftime("%H:%M:%S")
         }
-
         order = iris_db["orders"].get(pol, None)
-        
-        return jsonify({
-            "status": "success",
-            "order": order
-        }), 200
-
+        return jsonify({"status": "success", "order": order}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 400
 
@@ -71,9 +76,7 @@ def sync():
 def send_order():
     data = request.get_json()
     pol = data.get('pol')
-    # Harmonisation : on accepte 'instruction' ou 'msg'
     instruction = data.get('instruction') or data.get('msg')
-    
     if pol:
         iris_db["orders"][pol] = instruction
         return jsonify({"status": "sent"}), 200
@@ -85,4 +88,4 @@ def clear_order(pol):
     return jsonify({"status": "cleared"})
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True)

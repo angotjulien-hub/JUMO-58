@@ -2,225 +2,74 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>JUMO PERF - LIGNE 58 APEX</title>
+    <title>IRIS PCC ULTIMATE | Ligne 58</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=JetBrains+Mono:wght@400;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
-        :root { --jumo-cyan: #00f2ff; --jumo-alert: #ff004c; --jumo-bg: #05070a; }
-        body { font-family: 'JetBrains Mono', monospace; background: var(--jumo-bg); color: #e2e8f0; margin: 0; overflow: hidden; }
-        #map { height: 100vh; width: 100vw; filter: grayscale(0.5) brightness(0.7) contrast(1.1); }
+        body { background: #0a0c15; color: white; margin: 0; height: 100vh; overflow: hidden; font-family: sans-serif; }
+        .pcc-container { display: flex; height: 100vh; width: 100vw; }
+        .sidebar { width: 400px; background: #0f172a; border-right: 1px solid #00f2ff33; display: flex; flex-direction: column; }
         
-        .jumo-panel { 
-            background: rgba(10, 15, 25, 0.95); 
-            backdrop-filter: blur(25px); 
-            border: 1px solid rgba(0, 242, 255, 0.15);
-            box-shadow: 0 0 40px rgba(0,0,0,0.8);
-            border-radius: 4px;
+        /* Correction Affichage Carte */
+        #map { 
+            flex: 1; 
+            height: 100% !important; 
+            width: 100% !important; 
+            background: #111; /* Fond de secours */
         }
 
         .bus-marker {
-            background: #000; border: 2px solid var(--jumo-cyan); color: var(--jumo-cyan);
-            padding: 3px 10px; font-weight: 800; font-size: 11px; clip-path: polygon(10% 0, 100% 0, 90% 100%, 0% 100%);
-            box-shadow: 0 0 15px rgba(0, 242, 255, 0.5); text-align: center; white-space: nowrap;
+            background: #000; border: 2px solid #00f2ff; color: #00f2ff;
+            padding: 2px 5px; font-weight: bold; font-size: 10px; border-radius: 4px;
+            white-space: nowrap; box-shadow: 0 0 10px rgba(0,242,255,0.5);
         }
-
-        .alert-active { 
-            border-color: var(--jumo-alert) !important; 
-            color: white !important; 
-            background: var(--jumo-alert) !important;
-            animation: master-blink 0.4s infinite alternate;
-        }
-
-        @keyframes master-blink { from { opacity: 1; transform: scale(1); } to { opacity: 0.6; transform: scale(1.1); } }
-        .stat-pill { background: rgba(0, 242, 255, 0.05); border: 1px solid rgba(0, 242, 255, 0.2); }
     </style>
 </head>
 <body>
-
+<div class="pcc-container">
+    <div class="sidebar">
+        <div class="p-4 border-b border-cyan-500/20">
+            <h1 class="text-xl font-bold text-cyan-400">IRIS PCC <span class="text-white">58</span></h1>
+            <p class="text-[10px] text-slate-400 uppercase">Contrôle RATP - Janvier 2026</p>
+        </div>
+        <div id="fleetList" class="flex-1 overflow-y-auto p-4 space-y-2">
+            </div>
+        <div class="p-4 bg-black/50 border-t border-cyan-500/20">
+            <button onclick="location.reload()" class="w-full bg-cyan-600 py-2 rounded font-bold text-xs text-black">RECHARGER CARTE</button>
+        </div>
+    </div>
     <div id="map"></div>
+</div>
 
-    <div class="fixed top-6 left-6 z-[1000] w-80 pointer-events-none">
-        <div class="jumo-panel p-6 border-l-4 border-[#00f2ff] pointer-events-auto">
-            <div class="flex items-center justify-between mb-2">
-                <h1 class="text-2xl font-[Orbitron] font-black italic tracking-tighter text-[#00f2ff]">JUMO PERF</h1>
-                <span class="text-[8px] bg-white/10 px-2 py-1 rounded">SYS_V3.0</span>
-            </div>
-            <p class="text-[9px] text-slate-500 uppercase tracking-[0.5em] mb-4 font-bold">Ligne 58 • Régulation Temps Réel</p>
-            <div class="grid grid-cols-2 gap-2">
-                <div class="stat-pill p-2">
-                    <p class="text-[7px] text-slate-500 uppercase">Latence Flux</p>
-                    <p id="net-latency" class="text-xs font-bold text-white">-- ms</p>
-                </div>
-                <div class="stat-pill p-2">
-                    <p class="text-[7px] text-slate-500 uppercase">Qualité GPS</p>
-                    <p class="text-xs font-bold text-green-400">MIL-STD</p>
-                </div>
-            </div>
-        </div>
-    </div>
+<script>
+    // 1. Initialisation de la carte avec sécurité
+    var map = L.map('map', { zoomControl: true }).setView([48.840, 2.318], 13);
 
-    <div class="fixed bottom-6 left-6 z-[1000] w-80 pointer-events-none">
-        <div class="jumo-panel p-6 pointer-events-auto">
-            <h3 class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-4">Indicateurs Contractuels IDFM</h3>
-            <div class="space-y-4">
-                <div>
-                    <div class="flex justify-between text-[10px] mb-1 uppercase font-bold">
-                        <span>Offre Réalisée</span>
-                        <span id="prod-text" class="text-[#00f2ff]">--%</span>
-                    </div>
-                    <div class="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
-                        <div id="prod-bar" class="bg-[#00f2ff] h-full transition-all duration-700" style="width: 0%"></div>
-                    </div>
-                </div>
-                <div>
-                    <div class="flex justify-between text-[10px] mb-1 uppercase font-bold">
-                        <span>Ponctualité</span>
-                        <span id="ponct-text" class="text-green-400">--%</span>
-                    </div>
-                    <div class="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
-                        <div id="ponct-bar" class="bg-green-500 h-full transition-all duration-700" style="width: 0%"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    // 2. Utilisation du serveur OpenStreetMap (Plus fiable)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
 
-    <div class="fixed top-6 right-6 z-[1000] w-96 jumo-panel flex flex-col max-h-[92vh] pointer-events-auto overflow-hidden">
-        <div class="p-5 border-b border-white/10 flex justify-between items-center bg-white/5">
-            <h2 class="text-xs font-[Orbitron] font-bold tracking-widest text-white uppercase">Unités en Service</h2>
-            <span id="unit-count" class="text-[10px] font-black bg-[#00f2ff] text-black px-3 py-1 rounded-sm">0 UNIT</span>
-        </div>
+    // 3. Simuler les bus
+    const buses = [
+        {id: "58001", lat: 48.857, lng: 2.348, status: "OK"},
+        {id: "58004", lat: 48.838, lng: 2.318, status: "RETARD"}
+    ];
 
-        <div id="telemetry-list" class="flex-1 overflow-y-auto p-4 space-y-3">
-            </div>
+    buses.forEach(bus => {
+        var icon = L.divIcon({ 
+            html: `<div class="bus-marker">${bus.id}</div>`,
+            className: ''
+        });
+        L.marker([bus.lat, bus.lng], {icon: icon}).addTo(map)
+         .bindPopup(`Bus ${bus.id} - Statut: ${bus.status}`);
+    });
 
-        <div class="p-6 bg-black/40 border-t border-white/10">
-            <h3 class="text-[9px] font-black text-[#00f2ff] uppercase mb-4 tracking-widest italic">// Liaison de Commande</h3>
-            <div class="space-y-4">
-                <select id="msg-target" class="w-full bg-slate-900 border border-white/10 rounded-sm p-3 text-[10px] text-white outline-none focus:border-[#00f2ff]">
-                    <option value="ALL">DIFFUSION GÉNÉRALE</option>
-                    <optgroup label="UNITÉS SPÉCIFIQUES" id="target-list"></optgroup>
-                </select>
-                
-                <input type="text" id="msg-input" placeholder="ENTRER ORDRE DE MISSION..." class="w-full bg-transparent border-b border-white/20 p-2 text-xs text-white outline-none focus:border-[#00f2ff] uppercase font-bold">
-
-                <div class="grid grid-cols-2 gap-2 pt-2">
-                    <button onclick="fastCmd('TR')" class="bg-amber-600/10 border border-amber-600/30 text-amber-500 text-[9px] font-black py-3 hover:bg-amber-600 hover:text-white transition-all uppercase">Régulation (TR)</button>
-                    <button onclick="fastCmd('DEP')" class="bg-cyan-600/10 border border-cyan-600/30 text-cyan-400 text-[9px] font-black py-3 hover:bg-cyan-600 hover:text-white transition-all uppercase">Départ Imméd.</button>
-                </div>
-                <button onclick="transmit()" class="w-full bg-[#00f2ff] text-black text-[10px] font-black py-4 hover:bg-white transition-all uppercase tracking-widest">Transmettre l'ordre</button>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        const SERVER_URL = "https://angot.pythonanywhere.com";
-        const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.8400, 2.3250], 14);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
-
-        // Tracés Ligne 58
-        const pathA = [[48.827584,2.305412],[48.825589,2.301909],[48.823501,2.288277],[48.825031,2.291878],[48.823801,2.297645],[48.825194,2.301046],[48.824968,2.304202],[48.827332,2.305058],[48.826447,2.310447],[48.8263,2.313094],[48.827878,2.315378],[48.830723,2.319505],[48.832371,2.32058],[48.833978,2.321797],[48.836477,2.32272],[48.838083,2.322873],[48.840945,2.321701],[48.842874,2.323921],[48.842263,2.32865],[48.844761,2.328975],[48.846788,2.328543],[48.847022,2.330718],[48.848763,2.333345],[48.849223,2.33698],[48.849633,2.339064],[48.851626,2.338738],[48.854053,2.338817],[48.855886,2.340346],[48.858221,2.343151],[48.856914,2.347984],[48.857723,2.348081]];
-        L.polyline(pathA, {color: '#00f2ff', weight: 4, opacity: 0.7}).addTo(map);
-
-        let markers = {};
-
-        async function runJumoPerf() {
-            const t0 = Date.now();
-            try {
-                const res = await fetch(`${SERVER_URL}/get_buses`);
-                const busesObj = await res.json();
-                const busArray = Object.values(busesObj);
-
-                document.getElementById('net-latency').innerText = (Date.now() - t0) + " MS";
-                document.getElementById('unit-count').innerText = `${busArray.length} UNITS`;
-
-                const list = document.getElementById('telemetry-list');
-                const target = document.getElementById('target-list');
-                let listHtml = ""; let selectHtml = ""; let alerts = 0;
-
-                busArray.forEach((bus, i) => {
-                    const pol = bus.pol || i;
-                    const lat = parseFloat(bus.lat);
-                    const lon = parseFloat(bus.lon);
-                    
-                    // Détection Couplage (< 300m)
-                    let crit = false;
-                    busArray.forEach((b2, j) => {
-                        if (i !== j && map.distance([lat, lon], [parseFloat(b2.lat), parseFloat(b2.lon)]) < 300) {
-                            crit = true; alerts++;
-                        }
-                    });
-
-                    // Update Map
-                    if (!markers[pol]) {
-                        markers[pol] = L.marker([lat, lon], {
-                            icon: L.divIcon({className:'custom', html:`<div class="bus-marker" id="u-${pol}">${pol}</div>`})
-                        }).addTo(map);
-                    } else { markers[pol].setLatLng([lat, lon]); }
-
-                    const markerDom = document.getElementById(`u-${pol}`);
-                    if(crit) markerDom?.classList.add('alert-active');
-                    else markerDom?.classList.remove('alert-active');
-
-                    // List Item
-                    listHtml += `
-                        <div class="p-4 bg-white/5 border border-white/10 rounded flex justify-between items-center ${crit ? 'border-red-500 bg-red-500/10' : ''}">
-                            <div class="space-y-1">
-                                <p class="text-[10px] font-black text-[#00f2ff]">UNITÉ_P${pol}</p>
-                                <p class="text-[8px] text-slate-500 font-mono tracking-widest">${bus.speed || 0} KM/H • ${bus.status}</p>
-                            </div>
-                            <div class="text-right">
-                                <span class="text-[8px] font-black px-2 py-1 ${crit ? 'text-red-500' : 'text-green-500'} uppercase">
-                                    ${crit ? '!! COUPLAGE !!' : 'PROD_OK'}
-                                </span>
-                            </div>
-                        </div>
-                    `;
-                    selectHtml += `<option value="${pol}">UNITÉ P${pol}</option>`;
-                });
-
-                list.innerHTML = listHtml;
-                target.innerHTML = selectHtml;
-
-                // KPIs
-                const prod = Math.min(100, (busArray.length / 5) * 100);
-                document.getElementById('prod-text').innerText = Math.round(prod) + "%";
-                document.getElementById('prod-bar').style.width = prod + "%";
-                const ponct = Math.max(0, 100 - (alerts * 5));
-                document.getElementById('ponct-text').innerText = ponct + "%";
-                document.getElementById('ponct-bar').style.width = ponct + "%";
-
-            } catch (e) { console.error("Flux interrompu"); }
-        }
-
-        function fastCmd(type) {
-            const t = document.getElementById('msg-target').value;
-            const msg = type === 'TR' ? "REGULATION : ATTENTE (TR)" : "DEPART IMMEDIAT";
-            execute(t, msg);
-        }
-
-        function transmit() {
-            const t = document.getElementById('msg-target').value;
-            const m = document.getElementById('msg-input').value;
-            if(m) execute(t, m.toUpperCase());
-        }
-
-        async function execute(target, msg) {
-            try {
-                await fetch(`${SERVER_URL}/send_order`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ instruction: msg, pol: target })
-                });
-                alert(`ORDRE TRANSMIS ➔ [${target}]`);
-                document.getElementById('msg-input').value = "";
-            } catch (e) { alert("ERREUR LIAISON"); }
-        }
-
-        setInterval(runJumoPerf, 3000);
-        runJumoPerf();
-    </script>
+    // Forcer le rendu si la carte est grise au départ
+    setTimeout(() => { map.invalidateSize(); }, 500);
+</script>
 </body>
 </html>

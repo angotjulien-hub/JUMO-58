@@ -2,58 +2,170 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>IRIS Terminal Chauffeur</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>IRIS CORE v3.0 - L58</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
     <style>
-        body { margin: 0; padding: 0; height: 100vh; background: #000; font-family: sans-serif; }
-        #map { position: absolute; top: 0; bottom: 0; width: 100%; z-index: 1; }
-        
-        .overlay { 
-            position: absolute; bottom: 20px; left: 20px; right: 20px; 
-            z-index: 10; background: rgba(0,0,0,0.85); 
-            border: 2px solid #00f2ff; border-radius: 15px; padding: 20px;
-            backdrop-filter: blur(10px);
+        :root {
+            --iris-cyan: #00f2ff; --neon-green: #39ff14; --glass: rgba(10, 15, 20, 0.92);
+            --border: rgba(0, 242, 255, 0.5);
         }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; width: 100%; background: #000; overflow: hidden; position: relative; }
+
+        /* CARTE RADAR */
+        #map { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            z-index: 1; filter: saturate(1.2) brightness(0.8);
+            background: #050505;
+        }
+
+        /* HUD - INTERFACE DE PILOTAGE */
+        .hud {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 100; pointer-events: none;
+            display: grid; grid-template-columns: 340px 1fr 340px;
+            grid-template-rows: 90px 1fr 150px; padding: 25px; gap: 25px;
+        }
+        .hud > * { pointer-events: auto; }
+
+        .panel { 
+            background: var(--glass); backdrop-filter: blur(20px); 
+            border: 1px solid var(--border); border-radius: 18px; 
+            padding: 20px; box-shadow: 0 0 40px rgba(0,0,0,0.7);
+        }
+
+        /* HEADER DYNAMIQUE */
+        .header { grid-column: 1 / 4; display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid var(--iris-cyan); }
+        .brand { font-family: 'Orbitron'; font-weight: 900; font-size: 1.8rem; letter-spacing: -1px; color: white; }
+        .intervals { display: flex; gap: 40px; font-family: 'JetBrains Mono'; text-align: center; color: white; }
+        .intervals b { display: block; font-size: 1.1rem; color: var(--iris-cyan); }
+        .intervals small { font-size: 0.6rem; text-transform: uppercase; opacity: 0.6; }
+
+        /* TABLEAU DE MARCHE */
+        .tm { grid-row: 2; display: flex; flex-direction: column; gap: 8px; font-family: 'JetBrains Mono'; }
+        .tm-title { font-size: 0.7rem; font-weight: 900; color: var(--iris-cyan); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 2px; }
+        .tm-row { display: flex; justify-content: space-between; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 10px; font-size: 0.85rem; border: 1px solid transparent; color: #ccc; }
+        .tm-row.active { border-color: var(--iris-cyan); background: rgba(0, 242, 255, 0.1); font-weight: 800; color: #fff; box-shadow: inset 0 0 15px rgba(0,242,255,0.1); }
+
+        /* INSTRUMENTATION BASSE */
+        .footer { grid-column: 1 / 4; display: grid; grid-template-columns: repeat(4, 1fr); gap: 25px; }
+        .gauge { text-align: center; display: flex; flex-direction: column; justify-content: center; border-right: 1px solid rgba(255,255,255,0.1); color: white; }
+        .gauge:last-child { border: none; }
+        .g-label { font-size: 0.7rem; color: var(--iris-cyan); text-transform: uppercase; margin-bottom: 5px; font-weight: 700; }
+        .g-val { font-family: 'Orbitron'; font-size: 2.4rem; font-weight: 900; }
+        .neon { color: var(--neon-green); text-shadow: 0 0 15px rgba(57, 255, 20, 0.4); }
+
+        /* ANIMATION MARQUEUR */
+        .bus-pulse { animation: pulse 2s infinite; }
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 242, 255, 0.7); }
+            70% { transform: scale(1.1); box-shadow: 0 0 0 15px rgba(0, 242, 255, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 242, 255, 0); }
+        }
+
+        .btn-action {
+            grid-column: 3; align-self: end;
+            background: var(--iris-cyan); color: #000; border: none; 
+            padding: 18px; border-radius: 12px; font-family: 'Orbitron'; 
+            font-weight: 900; cursor: pointer; transition: 0.2s;
+            box-shadow: 0 0 20px rgba(0, 242, 255, 0.4);
+        }
+        .btn-action:active { transform: scale(0.95); background: #fff; }
     </style>
 </head>
 <body>
 
-<div id="map"></div>
+    <div id="map"></div>
 
-<div class="overlay">
-    <div class="flex justify-between items-center text-white">
-        <div>
-            <div class="text-cyan-400 text-xs font-bold">PROCHAIN ARRÊT</div>
-            <div class="text-2xl font-bold">MONTPARNASSE 2</div>
+    <div class="hud">
+        <div class="panel header">
+            <div class="brand">IRIS <span style="color:var(--iris-cyan)">CORE</span></div>
+            <div class="intervals">
+                <div><small>Intervalle N-1</small><b>00:08:45</b></div>
+                <div class="neon"><small>STATUS L58</small><b>NOMINAL</b></div>
+                <div><small>Intervalle N+1</small><b>00:09:12</b></div>
+            </div>
+            <div id="clock" style="font-family:'JetBrains Mono'; font-size: 1.6rem; letter-spacing: 2px; color: white;">00:00:00</div>
         </div>
-        <div class="text-right">
-            <div class="text-xs text-slate-400">ÉCART / IDFM</div>
-            <div class="text-3xl font-bold text-green-400">-00:15</div>
+
+        <div class="panel tm">
+            <div class="tm-title">Tableau de Marche</div>
+            <div class="tm-row"><span>CHATELET</span><b>01:05</b></div>
+            <div class="tm-row"><span>SÉNAT</span><b>01:15</b></div>
+            <div class="tm-row active"><span>G. MONTPARNASSE</span><b>01:25</b></div>
+            <div class="tm-row"><span>LOSSERAND</span><b>01:35</b></div>
+            <div class="tm-row"><span>PTE DE VANVES</span><b>01:42</b></div>
+            <div class="tm-row"><span>V. MICHELET</span><b>01:50</b></div>
         </div>
+
+        <div class="panel footer">
+            <div class="gauge">
+                <div class="g-label">Vitesse</div>
+                <div class="g-val neon"><span id="live-spd">0</span><small style="font-size: 0.8rem; margin-left:3px">km/h</small></div>
+            </div>
+            <div class="gauge">
+                <div class="g-label">Écart TM</div>
+                <div class="g-val neon">00:00</div>
+            </div>
+            <div class="gauge">
+                <div class="g-label">Passagers</div>
+                <div class="g-val">18</div>
+            </div>
+            <div class="gauge">
+                <div class="g-label">Canal PCC</div>
+                <div class="g-val" style="font-size: 1rem; color: var(--neon-green)">● CONNECTÉ</div>
+            </div>
+        </div>
+
+        <button class="btn-action" onclick="this.innerText='TRANSMIS ✓'; setTimeout(()=>this.innerText='TRANSMETTRE', 2000)">Transmettre</button>
     </div>
-    <div class="mt-4 flex gap-4">
-        <button class="flex-1 bg-slate-800 text-white py-3 rounded-lg font-bold border border-white/10">RADIO PCC</button>
-        <button class="flex-1 bg-red-600 text-white py-3 rounded-lg font-bold">ALARME DISCRÈTE</button>
-    </div>
-</div>
 
-<script>
-    // Initialisation
-    var map = L.map('map', { zoomControl: false }).setView([48.838, 2.318], 16);
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // INIT CARTE - FOND CARTODB DARK
+        var map = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.842, 2.318], 16);
+        
+        // Utilisation d'OSM si CartoDB échoue
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            opacity: 0.2 // Très sombre pour simuler le radar
+        }).addTo(map);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OSM'
-    }).addTo(map);
+        L.tileLayer('https://{s}.tile.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
 
-    // Marker de position propre (Le Bus)
-    var busMarker = L.circleMarker([48.838, 2.318], {
-        radius: 10, color: '#00f2ff', fillColor: '#00f2ff', fillOpacity: 1
-    }).addTo(map);
+        // MARQUEUR BUS PHOTONIQUE
+        var busIcon = L.divIcon({
+            className: 'bus-pulse',
+            html: '<div style="background:var(--iris-cyan); width:18px; height:18px; border-radius:50%; border:3px solid white; box-shadow: 0 0 20px var(--iris-cyan);"></div>'
+        });
+        var marker = L.marker([48.842, 2.318], {icon: busIcon}).addTo(map);
 
-    // Forcer le rafraîchissement visuel
-    setTimeout(() => { map.invalidateSize(); }, 500);
-</script>
+        function update() {
+            // Horloge
+            document.getElementById('clock').innerText = new Date().toLocaleTimeString('fr-FR');
+            
+            // GPS Réel
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition(p => {
+                    const lat = p.coords.latitude;
+                    const lng = p.coords.longitude;
+                    const s = p.coords.speed ? Math.round(p.coords.speed * 3.6) : 0;
+                    
+                    document.getElementById('live-spd').innerText = s;
+                    marker.setLatLng([lat, lng]);
+                    map.panTo([lat, lng]);
+                }, (err) => {
+                    console.warn("GPS Indisponible : Mode démo activé");
+                }, { enableHighAccuracy: true });
+            }
+        }
+
+        setInterval(update, 1000);
+        window.onload = () => {
+            setTimeout(() => map.invalidateSize(), 500);
+        };
+    </script>
 </body>
 </html>
+EOF

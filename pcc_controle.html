@@ -2,74 +2,551 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>IRIS PCC ULTIMATE | Ligne 58</title>
+    <title>IRIS PCC ULTIMATE | Flotte Connectée Ligne 58</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
-        body { background: #0a0c15; color: white; margin: 0; height: 100vh; overflow: hidden; font-family: sans-serif; }
-        .pcc-container { display: flex; height: 100vh; width: 100vw; }
-        .sidebar { width: 400px; background: #0f172a; border-right: 1px solid #00f2ff33; display: flex; flex-direction: column; }
-        
-        /* Correction Affichage Carte */
-        #map { 
-            flex: 1; 
-            height: 100% !important; 
-            width: 100% !important; 
-            background: #111; /* Fond de secours */
+        :root {
+            --iris-cyan: #00f2ff;
+            --iris-dark: #0a0c15;
+            --iris-slate: #0f172a;
+            --iris-purple: #8b5cf6;
+            --iris-gold: #fbbf24;
         }
-
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: var(--iris-dark); color: white; font-family: 'Segoe UI', monospace; overflow: hidden; }
+        
+        .pcc-container { display: flex; height: 100vh; width: 100vw; }
+        
+        .sidebar { 
+            width: 520px; 
+            background: linear-gradient(135deg, var(--iris-slate) 0%, #0a0f1a 100%);
+            border-right: 1px solid var(--iris-cyan); 
+            display: flex; 
+            flex-direction: column; 
+            overflow-y: auto;
+            z-index: 10;
+            backdrop-filter: blur(10px);
+        }
+        
+        #map { flex: 1; height: 100% !important; background: #0a1220; }
+        
         .bus-marker {
-            background: #000; border: 2px solid #00f2ff; color: #00f2ff;
-            padding: 2px 5px; font-weight: bold; font-size: 10px; border-radius: 4px;
-            white-space: nowrap; box-shadow: 0 0 10px rgba(0,242,255,0.5);
+            background: var(--iris-cyan);
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            box-shadow: 0 0 20px var(--iris-cyan);
+            border: 2px solid white;
+            animation: pulse-gps 1.5s infinite;
+            cursor: pointer;
+        }
+        
+        .bus-marker:hover {
+            transform: scale(1.5);
+            transition: transform 0.2s;
+        }
+        
+        @keyframes pulse-gps {
+            0% { box-shadow: 0 0 0 0 rgba(0, 242, 255, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(0, 242, 255, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 242, 255, 0); }
+        }
+        
+        .status-badge {
+            font-size: 9px;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-weight: bold;
+        }
+        
+        .status-badge.online { background: #00ff4422; color: #00ff44; border: 1px solid #00ff44; }
+        .status-badge.offline { background: #ff444422; color: #ff4444; border: 1px solid #ff4444; }
+        
+        .stat-card {
+            background: rgba(0, 20, 40, 0.6);
+            border-left: 3px solid var(--iris-cyan);
+            transition: all 0.2s;
+        }
+        
+        .stat-card:hover { background: rgba(0, 40, 60, 0.8); transform: translateX(-2px); }
+        
+        .refaction-card {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(0, 242, 255, 0.05) 100%);
+            border-left: 3px solid var(--iris-purple);
+            padding: 8px;
+            margin: 6px 0;
+            border-radius: 6px;
+        }
+        
+        .bonus-card {
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(0, 242, 255, 0.05) 100%);
+            border-left: 3px solid #22c55e;
+        }
+        
+        .malus-card {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(0, 242, 255, 0.05) 100%);
+            border-left: 3px solid #ef4444;
+        }
+        
+        .fleet-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 8px;
+        }
+        
+        .bus-card {
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 8px;
+            padding: 6px;
+            border: 1px solid rgba(0, 242, 255, 0.2);
+            transition: all 0.2s;
+        }
+        
+        .bus-card.active {
+            border-color: var(--iris-cyan);
+            box-shadow: 0 0 10px rgba(0, 242, 255, 0.3);
+        }
+        
+        .metric-value {
+            font-size: 20px;
+            font-weight: bold;
+            font-family: monospace;
+        }
+        
+        .scrollbar-custom::-webkit-scrollbar { width: 4px; }
+        .scrollbar-custom::-webkit-scrollbar-track { background: #1e293b; }
+        .scrollbar-custom::-webkit-scrollbar-thumb { background: var(--iris-cyan); border-radius: 4px; }
+        
+        button {
+            transition: all 0.2s;
+        }
+        
+        button:hover {
+            transform: scale(0.98);
+        }
+        
+        .live-badge {
+            position: relative;
+        }
+        
+        .live-badge::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            width: 8px;
+            height: 8px;
+            background: #ff4444;
+            border-radius: 50%;
+            animation: pulse-red 1s infinite;
+        }
+        
+        @keyframes pulse-red {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
+        
+        .stop-marker-popup {
+            font-size: 10px;
+            background: #1e293b;
+            border: 1px solid var(--iris-cyan);
+        }
+        
+        .progress-bar {
+            height: 2px;
+            background: rgba(0, 242, 255, 0.3);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: var(--iris-cyan);
+            transition: width 0.5s ease;
         }
     </style>
 </head>
 <body>
 <div class="pcc-container">
-    <div class="sidebar">
-        <div class="p-4 border-b border-cyan-500/20">
-            <h1 class="text-xl font-bold text-cyan-400">IRIS PCC <span class="text-white">58</span></h1>
-            <p class="text-[10px] text-slate-400 uppercase">Contrôle RATP - Janvier 2026</p>
-        </div>
-        <div id="fleetList" class="flex-1 overflow-y-auto p-4 space-y-2">
+    <!-- SIDEBAR - PCC AVANCÉ -->
+    <div class="sidebar scrollbar-custom">
+        <!-- Header avec stats en temps réel -->
+        <div class="p-4 border-b border-cyan-500/30 sticky top-0 bg-[#0f172a]/95 backdrop-blur z-10">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-xl font-bold">
+                        <span class="text-cyan-400">IRIS</span>
+                        <span class="text-white"> PCC</span>
+                        <span class="text-purple-400"> ULTIMATE</span>
+                    </h1>
+                    <p class="text-[9px] text-slate-400 uppercase tracking-wider">
+                        <i class="fas fa-bus mr-1"></i> FLOTTE CONNECTÉE | LIGNE 58 | CONTRAT IDFM-RATP 2021-2024
+                    </p>
+                </div>
+                <div class="text-right">
+                    <div class="text-[11px] font-mono text-cyan-400" id="clock">--:--:--</div>
+                    <div class="flex items-center gap-1 mt-1">
+                        <i class="fas fa-wifi text-[8px] text-cyan-400"></i>
+                        <span id="conn-status" class="text-[9px] text-green-400">● LIVE</span>
+                        <span class="text-[9px] text-slate-500 ml-2" id="fleet-count">0 bus</span>
+                    </div>
+                </div>
             </div>
-        <div class="p-4 bg-black/50 border-t border-cyan-500/20">
-            <button onclick="location.reload()" class="w-full bg-cyan-600 py-2 rounded font-bold text-xs text-black">RECHARGER CARTE</button>
+            <div class="grid grid-cols-4 gap-2 mt-3 text-center">
+                <div class="bg-black/30 rounded p-1">
+                    <div class="text-[8px] text-slate-400">KCC AUJ.</div>
+                    <div class="text-[14px] font-mono text-cyan-400" id="total-kmc">0</div>
+                </div>
+                <div class="bg-black/30 rounded p-1">
+                    <div class="text-[8px] text-slate-400">RÉFACTIONS</div>
+                    <div class="text-[14px] font-mono text-purple-400" id="total-refactions">0€</div>
+                </div>
+                <div class="bg-black/30 rounded p-1">
+                    <div class="text-[8px] text-slate-400">BONUS/MALUS</div>
+                    <div class="text-[14px] font-mono text-yellow-400" id="total-bonus">0€</div>
+                </div>
+                <div class="bg-black/30 rounded p-1">
+                    <div class="text-[8px] text-slate-400">RÉGULARITÉ</div>
+                    <div class="text-[14px] font-mono text-green-400" id="regularite">98.2%</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- FLOTTE EN TEMPS RÉEL -->
+        <div class="p-4 border-b border-cyan-500/20">
+            <div class="flex justify-between items-center mb-2">
+                <h2 class="text-xs font-bold text-cyan-400">
+                    <i class="fas fa-bus mr-1"></i> FLOTTE ACTIVE
+                    <span class="text-[9px] text-slate-500 ml-2" id="active-count"></span>
+                </h2>
+                <button onclick="refreshFleet()" class="text-[9px] bg-cyan-600/30 px-2 py-1 rounded hover:bg-cyan-600/50">
+                    <i class="fas fa-sync-alt mr-1"></i> SYNC
+                </button>
+            </div>
+            <div id="fleet-container" class="fleet-grid max-h-[280px] overflow-y-auto pr-1"></div>
+        </div>
+        
+        <!-- CALCULATEUR DE RÉFACTION (LIVE) -->
+        <div class="px-4 pt-3">
+            <h2 class="text-xs font-bold text-purple-400 mb-2">
+                <i class="fas fa-calculator mr-1"></i> CALCULATEUR RÉFACTION (Art.7)
+            </h2>
+            <div class="bg-slate-900/50 rounded p-2">
+                <div class="grid grid-cols-2 gap-2 text-[10px]">
+                    <select id="ref-sous-reseau" class="bg-slate-800 rounded p-1 text-white">
+                        <option value="PARIS">Bus Paris</option>
+                        <option value="PETITE_COURONNE">Petite Couronne</option>
+                        <option value="NOCTILIEN">Noctilien</option>
+                    </select>
+                    <select id="ref-cause" class="bg-slate-800 rounded p-1 text-white">
+                        <option value="EXTERNE">Cause externe (K1)</option>
+                        <option value="INTERNE">Cause interne (K3)</option>
+                        <option value="SOCIALE">Sociale (Grève)</option>
+                    </select>
+                    <input type="number" id="ref-kmc" placeholder="KMC non réalisés" class="bg-slate-800 rounded p-1 text-white text-[10px]">
+                    <button onclick="calculerRefaction()" class="bg-purple-600/50 rounded p-1 hover:bg-purple-600/80">
+                        <i class="fas fa-chart-line mr-1"></i> CALCULER
+                    </button>
+                </div>
+                <div id="refaction-result" class="mt-2 text-[10px] text-center text-purple-300"></div>
+            </div>
+        </div>
+        
+        <!-- INDICATEURS QS AVEC BONUS/MALUS LIVE -->
+        <div class="px-4 pt-3">
+            <h2 class="text-xs font-bold text-yellow-400 mb-2">
+                <i class="fas fa-star mr-1"></i> BONUS/MALUS QUALITÉ
+            </h2>
+            <div id="qs-container" class="space-y-2"></div>
+        </div>
+        
+        <!-- INCIDENTS DU JOUR -->
+        <div class="px-4 pt-3">
+            <h2 class="text-xs font-bold text-red-400 mb-2">
+                <i class="fas fa-exclamation-triangle mr-1"></i> INCIDENTS & RÉFACTIONS
+            </h2>
+            <div id="incidents-container" class="space-y-1 max-h-[200px] overflow-y-auto"></div>
+        </div>
+        
+        <!-- FOOTER CONTRACTUEL -->
+        <div class="p-3 text-[8px] text-slate-500 border-t border-slate-700 mt-2">
+            <i class="fas fa-file-contract mr-1"></i> Contrat IDFM-RATP 2021-2024 | Mise en concurrence: 01/01/2025
+            <br><i class="fas fa-chart-line mr-1"></i> Réfactions Art.7 | Bonus/Malus Annexes VII-A | Réemploi MR Art.46-2
         </div>
     </div>
+    
+    <!-- CARTE AVEC FLOTTE EN TEMPS RÉEL -->
     <div id="map"></div>
 </div>
 
 <script>
-    // 1. Initialisation de la carte avec sécurité
-    var map = L.map('map', { zoomControl: true }).setView([48.840, 2.318], 13);
-
-    // 2. Utilisation du serveur OpenStreetMap (Plus fiable)
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '© OpenStreetMap'
-    }).addTo(map);
-
-    // 3. Simuler les bus
-    const buses = [
-        {id: "58001", lat: 48.857, lng: 2.348, status: "OK"},
-        {id: "58004", lat: 48.838, lng: 2.318, status: "RETARD"}
-    ];
-
-    buses.forEach(bus => {
-        var icon = L.divIcon({ 
-            html: `<div class="bus-marker">${bus.id}</div>`,
-            className: ''
+    // Configuration
+    let map;
+    let busMarkers = new Map();
+    let stopMarkers = [];
+    let socket;
+    let fleetData = new Map();
+    
+    // ==================== INITIALISATION ====================
+    
+    async function initMap() {
+        map = L.map('map').setView([48.8566, 2.3522], 13);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '© CartoDB | IRIS PCC',
+            subdomains: 'abcd',
+            minZoom: 12,
+            maxZoom: 18
+        }).addTo(map);
+        
+        // Charger les arrêts de la ligne 58
+        const stops = await fetch('/api/stops/line58').then(r => r.json());
+        stops.forEach(stop => {
+            const marker = L.marker([stop.lat, stop.lng], {
+                icon: L.divIcon({
+                    html: `<div style="background:#1e293b; border:1px solid #00f2ff; padding:2px 8px; border-radius:16px; font-size:9px; color:#00f2ff;">
+                            <i class="fas fa-stop"></i> ${stop.nom}
+                           </div>`,
+                    className: 'stop-marker-popup',
+                    iconSize: [70, 24]
+                })
+            }).addTo(map);
+            marker.bindPopup(`<b>${stop.nom}</b><br>Ligne 58<br>Arrêt conforme Art.38`);
+            stopMarkers.push(marker);
         });
-        L.marker([bus.lat, bus.lng], {icon: icon}).addTo(map)
-         .bindPopup(`Bus ${bus.id} - Statut: ${bus.status}`);
-    });
-
-    // Forcer le rendu si la carte est grise au départ
-    setTimeout(() => { map.invalidateSize(); }, 500);
+    }
+    
+    // ==================== FLOTTE EN TEMPS RÉEL ====================
+    
+    async function loadFleetStatus() {
+        const response = await fetch('/api/fleet/status');
+        const fleet = await response.json();
+        
+        document.getElementById('fleet-count').innerText = fleet.length + ' bus';
+        document.getElementById('active-count').innerText = `(${fleet.length} actifs)`;
+        
+        // Mise à jour des marqueurs sur la carte
+        fleet.forEach(bus => {
+            fleetData.set(bus.bus_id, bus);
+            
+            if (busMarkers.has(bus.bus_id)) {
+                busMarkers.get(bus.bus_id).setLatLng([bus.lat, bus.lng]);
+            } else {
+                const marker = L.marker([bus.lat, bus.lng], {
+                    icon: L.divIcon({
+                        html: `<div class="bus-marker" data-bus="${bus.bus_id}"></div>`,
+                        iconSize: [12, 12],
+                        className: ''
+                    })
+                }).addTo(map);
+                
+                marker.bindPopup(`
+                    <div style="font-size:10px;">
+                        <b>${bus.bus_id}</b><br>
+                        Vitesse: ${Math.round(bus.vitesse)} km/h<br>
+                        Ligne: ${bus.ligne}<br>
+                        Sous-réseau: ${bus.sous_reseau}
+                    </div>
+                `);
+                
+                busMarkers.set(bus.bus_id, marker);
+            }
+        });
+        
+        // Rendu des cartes bus dans la sidebar
+        renderFleetCards(fleet);
+    }
+    
+    function renderFleetCards(fleet) {
+        const container = document.getElementById('fleet-container');
+        container.innerHTML = fleet.map(bus => `
+            <div class="bus-card ${bus.vitesse > 0 ? 'active' : ''}">
+                <div class="flex justify-between items-center">
+                    <span class="text-[10px] font-bold text-cyan-400">${bus.bus_id}</span>
+                    <span class="text-[8px] ${bus.vitesse > 0 ? 'text-green-400' : 'text-red-400'}">
+                        ${Math.round(bus.vitesse)} km/h
+                    </span>
+                </div>
+                <div class="text-[8px] text-slate-400">${bus.sous_reseau}</div>
+                <div class="progress-bar mt-1">
+                    <div class="progress-fill" style="width: ${Math.min(100, bus.vitesse)}%"></div>
+                </div>
+            </div>
+        `).join('');
+        
+        // Calcul du total KMC approximatif
+        const totalKmc = fleet.reduce((sum, bus) => sum + (bus.vitesse > 0 ? 0.5 : 0), 0);
+        document.getElementById('total-kmc').innerText = Math.round(totalKmc);
+    }
+    
+    // ==================== CALCULS CONTRACTUELS ====================
+    
+    async function calculerRefaction() {
+        const sous_reseau = document.getElementById('ref-sous-reseau').value;
+        const cause = document.getElementById('ref-cause').value;
+        const kmc = parseFloat(document.getElementById('ref-kmc').value) || 0;
+        
+        const response = await fetch('/api/calculer/refaction', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                sous_reseau: sous_reseau,
+                cause: cause,
+                kmc: kmc,
+                annee: 2024,
+                bus_id: "PCC-CALC",
+                type_incident: "simulation"
+            })
+        });
+        
+        const result = await response.json();
+        document.getElementById('refaction-result').innerHTML = `
+            <div class="refaction-card p-1 mt-1">
+                <i class="fas fa-euro-sign mr-1"></i>
+                Réfaction: <span class="font-bold text-purple-400">${result.montant} €</span>
+                <span class="text-slate-500 ml-2">(Cause: ${result.cause})</span>
+            </div>
+        `;
+    }
+    
+    async function loadIndicateursQS() {
+        const response = await fetch('/api/contrat/resume');
+        const data = await response.json();
+        
+        // Simulation de résultats de mesure
+        const mesures = {
+            "Propreté véhicules": 96.8,
+            "Arrêt au trottoir": 99.2,
+            "Info statique points d'arrêt": 97.5
+        };
+        
+        const container = document.getElementById('qs-container');
+        container.innerHTML = '';
+        
+        for (const ind of data.indicateurs) {
+            const resultat = mesures[ind.nom] || ind.objectif;
+            const bonusResponse = await fetch('/api/calculer/bonus_malus', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    indicateur: ind.nom,
+                    resultat: resultat
+                })
+            });
+            const bonus = await bonusResponse.json();
+            
+            const cardClass = bonus.montant > 0 ? 'bonus-card' : (bonus.montant < 0 ? 'malus-card' : '');
+            container.innerHTML += `
+                <div class="${cardClass} refaction-card p-2">
+                    <div class="flex justify-between">
+                        <span class="text-[10px]">${ind.nom}</span>
+                        <span class="text-[9px] font-mono ${bonus.montant > 0 ? 'text-green-400' : (bonus.montant < 0 ? 'text-red-400' : 'text-yellow-400')}">
+                            ${bonus.montant > 0 ? '+' : ''}${bonus.montant} €
+                        </span>
+                    </div>
+                    <div class="text-[8px] text-slate-400">
+                        Mesuré: ${resultat}% | Objectif: ${ind.objectif}%
+                    </div>
+                    <div class="text-[7px] text-slate-500">${bonus.statut}</div>
+                </div>
+            `;
+        }
+    }
+    
+    async function loadIncidents() {
+        const response = await fetch('/api/incidents/today');
+        const incidents = await response.json();
+        
+        const container = document.getElementById('incidents-container');
+        if (incidents.length === 0) {
+            container.innerHTML = '<div class="text-[9px] text-slate-500 text-center">Aucun incident aujourd\'hui</div>';
+            return;
+        }
+        
+        container.innerHTML = incidents.map(inc => `
+            <div class="bg-red-950/30 p-1 rounded text-[9px]">
+                <div class="flex justify-between">
+                    <span>${inc.type}</span>
+                    <span class="text-purple-400">${Math.round(inc.total_refaction)} €</span>
+                </div>
+                <div class="text-[8px] text-slate-400">Cause: ${inc.cause} | ${Math.round(inc.total_kmc)} KMC</div>
+            </div>
+        `).join('');
+        
+        const totalRefactions = incidents.reduce((sum, inc) => sum + inc.total_refaction, 0);
+        document.getElementById('total-refactions').innerText = Math.round(totalRefactions) + '€';
+    }
+    
+    // ==================== WEBSOCKET - TEMPS RÉEL ====================
+    
+    function initWebSocket() {
+        socket = io();
+        
+        socket.on('connect', () => {
+            console.log('🔌 WebSocket connecté au PCC');
+            document.getElementById('conn-status').innerHTML = '● CONNECTÉ';
+        });
+        
+        socket.on('bus_position_update', (data) => {
+            // Mise à jour temps réel d'un bus
+            const bus = fleetData.get(data.bus_id);
+            if (bus) {
+                bus.lat = data.lat;
+                bus.lng = data.lng;
+                bus.vitesse = data.vitesse;
+                fleetData.set(data.bus_id, bus);
+                
+                // Mise à jour du marqueur
+                if (busMarkers.has(data.bus_id)) {
+                    busMarkers.get(data.bus_id).setLatLng([data.lat, data.lng]);
+                }
+                
+                // Rafraîchissement de l'affichage
+                renderFleetCards(Array.from(fleetData.values()));
+            }
+        });
+        
+        socket.on('disconnect', () => {
+            document.getElementById('conn-status').innerHTML = '● DÉCONNECTÉ';
+        });
+    }
+    
+    // ==================== UTILITAIRES ====================
+    
+    function refreshFleet() {
+        loadFleetStatus();
+        loadIncidents();
+    }
+    
+    function updateClock() {
+        const now = new Date();
+        document.getElementById('clock').innerText = now.toLocaleTimeString('fr-FR');
+    }
+    
+    // ==================== RAFRAÎCHISSEMENT AUTOMATIQUE ====================
+    
+    setInterval(() => {
+        loadFleetStatus();
+        loadIncidents();
+    }, 5000);
+    
+    setInterval(updateClock, 1000);
+    
+    // ==================== DÉMARRAGE ====================
+    
+    async function init() {
+        await initMap();
+        await loadFleetStatus();
+        await loadIndicateursQS();
+        await loadIncidents();
+        initWebSocket();
+    }
+    
+    init();
 </script>
 </body>
 </html>

@@ -2,262 +2,1004 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>JUMO PERF - LIGNE 58 APEX V3.1</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>JUMBO PCC L58 | IRIS AI v4.0 - Régulation Prédictive</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=JetBrains+Mono:wght@400;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --jumo-cyan: #00f2ff; --jumo-alert: #ff004c; --jumo-bg: #05070a; }
-        body { font-family: 'JetBrains Mono', monospace; background: var(--jumo-bg); color: #e2e8f0; margin: 0; overflow: hidden; }
-        #map { height: 100vh; width: 100vw; filter: grayscale(0.6) brightness(0.6) contrast(1.2) sepia(0.2) hue-rotate(160deg); }
-
-        .jumo-panel {
-            background: rgba(10, 15, 25, 0.9);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(0, 242, 255, 0.1);
-            box-shadow: 0 0 50px rgba(0,0,0,0.9);
+        :root {
+            --iris-cyan: #00f2ff;
+            --iris-purple: #8b5cf6;
+            --iris-magenta: #ff44cc;
+            --iris-dark: #05070a;
+            --iris-slate: #0a0c15;
+            --success: #22c55e;
+            --warning: #f97316;
+            --danger: #ef4444;
+            --glass: rgba(10, 15, 20, 0.95);
+            --glass-light: rgba(20, 25, 40, 0.85);
         }
-
-        /* Marqueur avec transition fluide */
-        .leaflet-marker-icon { transition: all 3s linear; }
-
-        .bus-marker {
-            background: #000; border: 2px solid var(--jumo-cyan); color: var(--jumo-cyan);
-            padding: 4px 12px; font-weight: 800; font-size: 11px; 
-            clip-path: polygon(15% 0, 100% 0, 85% 100%, 0% 100%);
-            box-shadow: 0 0 15px rgba(0, 242, 255, 0.3); text-align: center; white-space: nowrap;
-        }
-
-        .alert-active {
-            border-color: var(--jumo-alert) !important;
-            color: white !important;
-            background: var(--jumo-alert) !important;
-            box-shadow: 0 0 25px var(--jumo-alert);
-            animation: master-blink 0.5s infinite alternate ease-in-out;
-        }
-
-        @keyframes master-blink { from { opacity: 1; transform: scale(1); } to { opacity: 0.7; transform: scale(1.15); } }
-        .stat-pill { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.05); }
         
-        /* Custom Scrollbar */
-        #telemetry-list::-webkit-scrollbar { width: 4px; }
-        #telemetry-list::-webkit-scrollbar-thumb { background: var(--jumo-cyan); opacity: 0.3; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: var(--iris-dark); color: white; font-family: 'JetBrains Mono', monospace; overflow: hidden; }
+        
+        .header {
+            height: 52px;
+            background: linear-gradient(135deg, #0a0c15 0%, #0d1117 100%);
+            border-bottom: 2px solid var(--iris-cyan);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+            z-index: 100;
+        }
+        .logo {
+            font-family: 'Orbitron';
+            font-size: 1.2rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, #fff, var(--iris-cyan), var(--iris-purple));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        .logo span { background: none; color: var(--iris-cyan); }
+        .badge { padding: 4px 12px; border-radius: 20px; background: rgba(0,242,255,0.1); border: 1px solid var(--iris-cyan); font-size: 0.7rem; }
+        .mic-btn {
+            background: var(--iris-purple);
+            border: none;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.7rem;
+            transition: all 0.2s;
+        }
+        .mic-btn.listening { background: var(--danger); animation: pulse 1s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+        
+        .main { display: flex; height: calc(100vh - 52px); width: 100%; position: relative; }
+        
+        /* PANELS DRAGGABLE */
+        .panel {
+            position: absolute;
+            background: var(--glass);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(0,242,255,0.3);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: box-shadow 0.2s;
+            z-index: 20;
+        }
+        .panel:hover { box-shadow: 0 0 20px rgba(0,242,255,0.2); }
+        .panel-header {
+            padding: 8px 12px;
+            background: rgba(0,0,0,0.5);
+            cursor: move;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(0,242,255,0.2);
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+        .panel-content { padding: 10px; overflow-y: auto; max-height: calc(100% - 40px); }
+        .panel.minimized .panel-content { display: none; }
+        .panel.minimized { height: auto !important; }
+        
+        /* LAYOUT PAR DÉFAUT */
+        .panel-timeline { top: 10px; left: 10px; width: 380px; height: 140px; }
+        .panel-tm { top: 160px; left: 10px; width: 480px; height: 380px; }
+        .panel-fleet { top: 550px; left: 10px; width: 480px; height: 180px; }
+        .panel-stats { top: 10px; right: 10px; width: 320px; height: 280px; }
+        .panel-ai { top: 300px; right: 10px; width: 320px; height: 200px; }
+        .panel-chat { top: 510px; right: 10px; width: 320px; height: 160px; }
+        
+        #map { width: 100%; height: 100%; background: #05070a; z-index: 1; }
+        
+        /* TABLEAU DE MARCHE - AMÉLIORÉ */
+        .tm-wrapper {
+            width: 100%;
+            overflow-x: auto;
+            overflow-y: auto;
+            max-height: 320px;
+        }
+        .tm-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.7rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .tm-table th {
+            background: #1e293b;
+            color: var(--iris-cyan);
+            padding: 6px 4px;
+            position: sticky;
+            top: 0;
+            font-weight: bold;
+            text-align: center;
+            font-size: 0.65rem;
+            border-bottom: 1px solid #00f2ff33;
+        }
+        .tm-table td {
+            padding: 5px 4px;
+            text-align: center;
+            border-bottom: 1px solid #1a1a2e;
+            color: #ccc;
+        }
+        .tm-table tr.current td {
+            background: rgba(0,242,255,0.15);
+            border-left: 2px solid var(--iris-cyan);
+        }
+        .tm-table tr.delayed td {
+            background: rgba(239,68,68,0.15);
+            color: #ef4444;
+        }
+        .tm-table .police-cell { font-weight: bold; color: var(--iris-cyan); }
+        
+        .timeline-track {
+            position: relative;
+            height: 50px;
+            background: #1e293b;
+            border-radius: 25px;
+            margin: 8px 0;
+        }
+        .timeline-bus {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            top: 20px;
+            transform: translateX(-50%);
+            cursor: pointer;
+            transition: transform 0.2s;
+            z-index: 5;
+        }
+        .timeline-bus:hover { transform: translateX(-50%) scale(1.3); }
+        .timeline-now {
+            position: absolute;
+            width: 2px;
+            height: 40px;
+            background: var(--iris-cyan);
+            top: 5px;
+            transform: translateX(-50%);
+            box-shadow: 0 0 10px var(--iris-cyan);
+            z-index: 10;
+        }
+        .timeline-prediction {
+            position: absolute;
+            width: 3px;
+            height: 40px;
+            background: var(--warning);
+            top: 5px;
+            transform: translateX(-50%);
+            opacity: 0.7;
+            z-index: 8;
+        }
+        
+        .fleet-card {
+            background: rgba(0,0,0,0.4);
+            border-radius: 6px;
+            padding: 6px;
+            margin-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            border-left: 3px solid;
+            font-size: 0.6rem;
+        }
+        .fleet-card .prediction-badge { font-size: 0.5rem; background: rgba(0,0,0,0.5); padding: 2px 5px; border-radius: 10px; }
+        
+        .chat-message {
+            background: #1e293b;
+            border-radius: 6px;
+            padding: 5px;
+            margin: 4px 0;
+            font-size: 0.5rem;
+        }
+        .chat-input {
+            display: flex;
+            gap: 5px;
+            margin-top: 6px;
+        }
+        .chat-input input {
+            flex: 1;
+            padding: 5px;
+            background: #0f172a;
+            border: 1px solid #1a1a2e;
+            border-radius: 5px;
+            color: white;
+            font-size: 0.5rem;
+        }
+        
+        .widget-controls {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            background: var(--glass);
+            border-radius: 20px;
+            padding: 5px 10px;
+            z-index: 100;
+            display: flex;
+            gap: 8px;
+        }
+        .widget-btn {
+            background: #1e293b;
+            border: none;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 15px;
+            cursor: pointer;
+            font-size: 0.6rem;
+        }
+        
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--iris-slate);
+            border-left: 3px solid var(--iris-cyan);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 10px;
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: #1a1a2e; }
+        ::-webkit-scrollbar-thumb { background: var(--iris-cyan); border-radius: 5px; }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            font-size: 0.65rem;
+            border-bottom: 1px solid #1a1a2e;
+        }
+        .stat-value { color: var(--iris-cyan); font-weight: bold; }
+        
+        .prediction-card {
+            background: rgba(139,92,246,0.2);
+            border-radius: 8px;
+            padding: 8px;
+            margin: 5px 0;
+            font-size: 0.6rem;
+        }
+        .confidence-bar {
+            height: 4px;
+            background: #333;
+            border-radius: 2px;
+            margin-top: 5px;
+            overflow: hidden;
+        }
+        .confidence-fill { height: 100%; background: var(--iris-cyan); border-radius: 2px; }
+        
+        .offline-badge { display: none; position: fixed; top: 60px; right: 10px; background: #ef4444; padding: 4px 8px; border-radius: 8px; font-size: 10px; z-index: 1000; }
+        body.offline .offline-badge { display: block; }
     </style>
 </head>
 <body>
-
-    <div id="map"></div>
-
-    <div class="fixed top-6 left-6 z-[1000] w-80 pointer-events-none">
-        <div class="jumo-panel p-6 border-l-4 border-[#00f2ff] pointer-events-auto rounded-r-lg">
-            <div class="flex items-center justify-between mb-2">
-                <h1 class="text-2xl font-[Orbitron] font-black italic tracking-tighter text-[#00f2ff]">JUMO PERF</h1>
-                <span class="text-[8px] bg-white/10 px-2 py-1 rounded font-bold">V3.1_STABLE</span>
-            </div>
-            <p class="text-[9px] text-slate-500 uppercase tracking-[0.4em] mb-4 font-bold">Ligne 58 • Régulation Temps Réel</p>
-            <div class="grid grid-cols-2 gap-2">
-                <div class="stat-pill p-3 rounded">
-                    <p class="text-[7px] text-slate-500 uppercase mb-1">Flux Latency</p>
-                    <p id="net-latency" class="text-sm font-bold text-white font-mono">-- MS</p>
-                </div>
-                <div class="stat-pill p-3 rounded">
-                    <p class="text-[7px] text-slate-500 uppercase mb-1">Status GPS</p>
-                    <p class="text-sm font-bold text-green-400">ACTIVE</p>
-                </div>
-            </div>
+    <div class="offline-badge"><i class="fas fa-wifi-slash"></i> MODE DÉGRADÉ</div>
+    
+    <div class="header">
+        <div class="logo">JUMBO <span>PCC</span> L58 | IRIS AI v4.0</div>
+        <div style="display: flex; gap: 12px; align-items: center;">
+            <button class="mic-btn" id="micBtn" onclick="toggleVoiceRecognition()"><i class="fas fa-microphone"></i> COMMANDE VOCALE</button>
+            <div class="badge" id="clock">--:--:--</div>
         </div>
     </div>
-
-    <div class="fixed bottom-6 left-6 z-[1000] w-80 pointer-events-none">
-        <div class="jumo-panel p-6 pointer-events-auto rounded-lg">
-            <h3 class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-4 border-b border-white/5 pb-2">Indicateurs Contractuels</h3>
-            <div class="space-y-4">
-                <div>
-                    <div class="flex justify-between text-[10px] mb-2 uppercase font-bold">
-                        <span>Offre Réalisée</span>
-                        <span id="prod-text" class="text-[#00f2ff]">0%</span>
-                    </div>
-                    <div class="w-full bg-white/5 h-1 rounded-full overflow-hidden">
-                        <div id="prod-bar" class="bg-[#00f2ff] h-full transition-all duration-1000 shadow-[0_0_10px_#00f2ff]" style="width: 0%"></div>
-                    </div>
-                </div>
-                <div>
-                    <div class="flex justify-between text-[10px] mb-2 uppercase font-bold">
-                        <span>Ponctualité</span>
-                        <span id="ponct-text" class="text-green-400">0%</span>
-                    </div>
-                    <div class="w-full bg-white/5 h-1 rounded-full overflow-hidden">
-                        <div id="ponct-bar" class="bg-green-500 h-full transition-all duration-1000" style="width: 0%"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="fixed top-6 right-6 z-[1000] w-96 jumo-panel flex flex-col max-h-[92vh] pointer-events-auto rounded-lg overflow-hidden border-r-4 border-white/5">
-        <div class="p-5 border-b border-white/10 flex justify-between items-center bg-white/5">
-            <h2 class="text-xs font-[Orbitron] font-bold tracking-widest text-white uppercase">Unités en Service</h2>
-            <span id="unit-count" class="text-[10px] font-black bg-[#00f2ff] text-black px-3 py-1 rounded-sm">0 UNIT</span>
-        </div>
-
-        <div id="telemetry-list" class="flex-1 overflow-y-auto p-4 space-y-2">
-            </div>
-
-        <div class="p-6 bg-black/60 border-t border-white/10">
-            <h3 class="text-[9px] font-black text-[#00f2ff] uppercase mb-4 tracking-widest italic">// Liaison de Commande</h3>
-            <div class="space-y-3">
-                <select id="msg-target" class="w-full bg-slate-900 border border-white/10 rounded-sm p-3 text-[10px] text-white outline-none focus:border-[#00f2ff] appearance-none">
-                    <option value="ALL">DIFFUSION GÉNÉRALE (ALL)</option>
-                    <optgroup label="UNITÉS SPÉCIFIQUES" id="target-list"></optgroup>
-                </select>
-
-                <input type="text" id="msg-input" placeholder="ORDRE DE MISSION..." class="w-full bg-white/5 border-b border-white/20 p-3 text-xs text-white outline-none focus:border-[#00f2ff] uppercase font-bold placeholder:text-slate-600">
-
-                <div class="grid grid-cols-2 gap-2 pt-2">
-                    <button onclick="fastCmd('TR')" class="bg-white/5 border border-white/10 text-amber-500 text-[9px] font-black py-3 hover:bg-amber-600 hover:text-white transition-all">RÉGUL. (TR)</button>
-                    <button onclick="fastCmd('DEP')" class="bg-white/5 border border-white/10 text-cyan-400 text-[9px] font-black py-3 hover:bg-cyan-600 hover:text-white transition-all">DÉPART IMMÉD.</button>
-                </div>
-                <button onclick="transmit()" class="w-full bg-[#00f2ff] text-black text-[10px] font-black py-4 hover:bg-white transition-all uppercase tracking-widest mt-2">Transmettre l'ordre</button>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        const SERVER_URL = "https://angot.pythonanywhere.com";
-        const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([48.8400, 2.3250], 14);
+    
+    <div class="main">
+        <div id="map"></div>
         
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+        <!-- PANELS DRAGGABLES -->
+        <div id="panel-timeline" class="panel panel-timeline">
+            <div class="panel-header" onmousedown="startDrag(this.parentElement)">
+                <span><i class="fas fa-chart-line"></i> TIMELINE PRÉDICTIVE</span>
+                <button class="widget-btn" onclick="togglePanel(this)"><i class="fas fa-minus"></i></button>
+            </div>
+            <div class="panel-content">
+                <div class="timeline-hours" id="timeline-hours" style="display: flex; justify-content: space-between; font-size: 0.5rem; margin-bottom: 5px;"></div>
+                <div class="timeline-track" id="timeline-track"></div>
+                <div class="heatmap-legend" style="display: flex; gap: 10px; font-size: 0.45rem; margin-top: 8px;">
+                    <span><i class="fas fa-chart-simple"></i> Heatmap retards:</span>
+                    <span><span style="width:15px;height:8px;background:#22c55e;display:inline-block;"></span> &lt;5min</span>
+                    <span><span style="width:15px;height:8px;background:#f97316;display:inline-block;"></span> 5-15min</span>
+                    <span><span style="width:15px;height:8px;background:#ef4444;display:inline-block;"></span> &gt;15min</span>
+                </div>
+            </div>
+        </div>
+        
+        <div id="panel-tm" class="panel panel-tm">
+            <div class="panel-header" onmousedown="startDrag(this.parentElement)">
+                <span><i class="fas fa-table"></i> TABLEAU DE MARCHE</span>
+                <div><button class="widget-btn" onclick="toggleDirection()" style="margin-right:5px;"><i class="fas fa-exchange-alt"></i> ALLER/RETOUR</button>
+                <button class="widget-btn" onclick="togglePanel(this)"><i class="fas fa-minus"></i></button></div>
+            </div>
+            <div class="panel-content" style="padding: 5px;">
+                <div class="tm-wrapper" id="tm-container"></div>
+            </div>
+        </div>
+        
+        <div id="panel-fleet" class="panel panel-fleet">
+            <div class="panel-header" onmousedown="startDrag(this.parentElement)">
+                <span><i class="fas fa-bus"></i> FLOTTE + PRÉDICTIONS</span>
+                <button class="widget-btn" onclick="togglePanel(this)"><i class="fas fa-minus"></i></button>
+            </div>
+            <div class="panel-content" id="fleet-container"></div>
+        </div>
+        
+        <div id="panel-stats" class="panel panel-stats">
+            <div class="panel-header" onmousedown="startDrag(this.parentElement)">
+                <span><i class="fas fa-chart-pie"></i> KPI TEMPS RÉEL</span>
+                <button class="widget-btn" onclick="togglePanel(this)"><i class="fas fa-minus"></i></button>
+            </div>
+            <div class="panel-content">
+                <canvas id="kpiChart" width="280" height="120" style="height:120px; width:100%"></canvas>
+                <div class="stat-item"><span>KMC réalisés</span><span class="stat-value" id="kmc-realises">0</span></div>
+                <div class="stat-item"><span>Régularité</span><span class="stat-value" id="regularite-moy">98.5%</span></div>
+                <div class="stat-item"><span>Polices service</span><span class="stat-value" id="bus-count">0</span></div>
+                <div class="stat-item"><span>Réfactions</span><span class="stat-value" id="total-refactions">0€</span></div>
+                <div class="stat-item"><span>Retard moyen</span><span class="stat-value" id="avg-delay">0min</span></div>
+            </div>
+        </div>
+        
+        <div id="panel-ai" class="panel panel-ai">
+            <div class="panel-header" onmousedown="startDrag(this.parentElement)">
+                <span><i class="fas fa-brain"></i> IRIS AI PRÉDICTIVE</span>
+                <button class="widget-btn" onclick="togglePanel(this)"><i class="fas fa-minus"></i></button>
+            </div>
+            <div class="panel-content" id="ai-container"></div>
+        </div>
+        
+        <div id="panel-chat" class="panel panel-chat">
+            <div class="panel-header" onmousedown="startDrag(this.parentElement)">
+                <span><i class="fas fa-comments"></i> MESSAGERIE</span>
+                <button class="widget-btn" onclick="togglePanel(this)"><i class="fas fa-minus"></i></button>
+            </div>
+            <div class="panel-content">
+                <div id="chat-container" style="max-height: 90px; overflow-y: auto;"></div>
+                <div class="chat-input">
+                    <input type="text" id="chat-input" placeholder="Message aux agents..." onkeypress="if(event.key==='Enter') sendMessage()">
+                    <button onclick="sendMessage()"><i class="fas fa-paper-plane"></i></button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="widget-controls">
+            <button class="widget-btn" onclick="resetLayout()"><i class="fas fa-undo-alt"></i> Réinitialiser</button>
+            <button class="widget-btn" onclick="exportData()"><i class="fas fa-download"></i> Export CSV</button>
+            <button class="widget-btn" onclick="testOfflineMode()"><i class="fas fa-cloud-arrow-down"></i> Mode dégradé</button>
+        </div>
+    </div>
 
-        const pathA = [[48.827584,2.305412],[48.825589,2.301909],[48.823501,2.288277],[48.825031,2.291878],[48.823801,2.297645],[48.825194,2.301046],[48.824968,2.304202],[48.827332,2.305058],[48.826447,2.310447],[48.8263,2.313094],[48.827878,2.315378],[48.830723,2.319505],[48.832371,2.32058],[48.833978,2.321797],[48.836477,2.32272],[48.838083,2.322873],[48.840945,2.321701],[48.842874,2.323921],[48.842263,2.32865],[48.844761,2.328975],[48.846788,2.328543],[48.847022,2.330718],[48.848763,2.333345],[48.849223,2.33698],[48.849633,2.339064],[48.851626,2.338738],[48.854053,2.338817],[48.855886,2.340346],[48.858221,2.343151],[48.856914,2.347984],[48.857723,2.348081]];
-        L.polyline(pathA, {color: '#00f2ff', weight: 3, opacity: 0.4, dashArray: '10, 10'}).addTo(map);
-
-        let markers = {};
-
-        async function runJumoPerf() {
-            const t0 = Date.now();
-            try {
-                const res = await fetch(`${SERVER_URL}/get_buses`);
-                const busesObj = await res.json();
-                const busArray = Object.values(busesObj);
-
-                document.getElementById('net-latency').innerText = (Date.now() - t0) + " MS";
-                document.getElementById('unit-count').innerText = `${busArray.length} UNITS`;
-
-                // Calcul des couplages et enrichissement des données
-                let alerts = 0;
-                const enrichedBuses = busArray.map((bus, i) => {
-                    const lat = parseFloat(bus.lat);
-                    const lon = parseFloat(bus.lon);
-                    let isCoupled = false;
-
-                    busArray.forEach((b2, j) => {
-                        if (i !== j) {
-                            const dist = map.distance([lat, lon], [parseFloat(b2.lat), parseFloat(b2.lon)]);
-                            if (dist < 300) { isCoupled = true; alerts++; }
-                        }
-                    });
-                    return { ...bus, isCoupled, lat, lon };
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // ============================================================================
+        // CONFIGURATION
+        // ============================================================================
+        let map;
+        let markers = new Map();
+        let dragTarget = null;
+        let dragOffsetX = 0, dragOffsetY = 0;
+        let fleetData = new Map();
+        let realTimes = new Map();
+        let chatMessages = [];
+        let currentDirection = 'aller';
+        let currentFilter = 'all';
+        let offlineMode = false;
+        let kpiChart;
+        let recognition = null;
+        let totalRefactions = 0;
+        
+        // ============================================================================
+        // DONNÉES TM
+        // ============================================================================
+        const TM_ALLER = [
+            { police: "01", agent: "1", tv: "44298328", ctl: "6:15", ga: "6:15", lux: "6:20", j18: "6:26", al: "6:36", chn: "6:43", vm: "6:50" },
+            { police: "02", agent: "2", tv: "44298346", ctl: "6:34", ga: "6:34", lux: "6:40", j18: "6:46", al: "6:55", chn: "7:02", vm: "7:10" },
+            { police: "03", agent: "4", tv: "44298386", ctl: "6:48", ga: "6:48", lux: "6:54", j18: "7:00", al: "7:10", chn: "7:17", vm: "7:25" },
+            { police: "04", agent: "3", tv: "44298369", ctl: "7:02", ga: "7:02", lux: "7:09", j18: "7:15", al: "7:24", chn: "7:31", vm: "7:40" },
+            { police: "05", agent: "5", tv: "44298405", ctl: "7:12", ga: "7:12", lux: "7:19", j18: "7:25", al: "7:34", chn: "7:41", vm: "7:50" },
+            { police: "06", agent: "61", tv: "44298427", ctl: "7:22", ga: "7:22", lux: "7:29", j18: "7:35", al: "7:44", chn: "7:51", vm: "8:00" },
+            { police: "07", agent: "60", tv: "44298449", ctl: "7:33", ga: "7:33", lux: "7:40", j18: "7:46", al: "7:55", chn: "8:02", vm: "8:11" },
+            { police: "08", agent: "20", tv: "44298329", ctl: "7:43", ga: "7:43", lux: "7:50", j18: "7:56", al: "8:05", chn: "8:12", vm: "8:21" },
+            { police: "09", agent: "6", tv: "44298347", ctl: "7:54", ga: "7:54", lux: "8:01", j18: "8:07", al: "8:16", chn: "8:23", vm: "8:32" },
+            { police: "10", agent: "1", tv: "44298705", ctl: "8:03", ga: "8:03", lux: "8:10", j18: "8:17", al: "8:26", chn: "8:35", vm: "8:45" },
+            { police: "11", agent: "7", tv: "44298467", ctl: "8:14", ga: "8:14", lux: "8:21", j18: "8:28", al: "8:37", chn: "8:46", vm: "8:56" },
+            { police: "12", agent: "2", tv: "44298387", ctl: "8:24", ga: "8:24", lux: "8:31", j18: "8:38", al: "8:47", chn: "8:56", vm: "9:06" },
+            { police: "13", agent: "21", tv: "44350039", ctl: "8:34", ga: "8:34", lux: "8:41", j18: "8:48", al: "8:57", chn: "9:06", vm: "9:16" }
+        ];
+        
+        const TM_RETOUR = [
+            { police: "01", agent: "3", tv: "44298377", vm: "6:15", chi: "6:15", al: "6:23", lm: "6:29", j18: "6:33", lux: "6:37", sg: "6:44", ga: "6:46", ctl: "6:49" },
+            { police: "02", agent: "5", tv: "44298415", vm: "6:28", chi: "6:28", al: "6:36", lm: "6:42", j18: "6:46", lux: "6:50", sg: "6:57", ga: "6:59", ctl: "7:02" },
+            { police: "03", agent: "60", tv: "44298437", vm: "6:42", chi: "6:42", al: "6:50", lm: "6:56", j18: "7:00", lux: "7:04", sg: "7:11", ga: "7:13", ctl: "7:16" },
+            { police: "04", agent: "6", tv: "44350043", vm: "6:56", chi: "6:56", al: "7:04", lm: "7:10", j18: "7:14", lux: "7:18", sg: "7:25", ga: "7:27", ctl: "7:30" },
+            { police: "05", agent: "1", tv: "44298337", vm: "7:07", chi: "7:07", al: "7:16", lm: "7:23", j18: "7:27", lux: "7:31", sg: "7:40", ga: "7:44", ctl: "7:47" },
+            { police: "06", agent: "7", tv: "44298357", vm: "7:17", chi: "7:17", al: "7:26", lm: "7:33", j18: "7:37", lux: "7:41", sg: "7:50", ga: "7:54", ctl: "7:57" },
+            { police: "07", agent: "2", tv: "44298474", vm: "7:28", chi: "7:28", al: "7:37", lm: "7:44", j18: "7:48", lux: "7:52", sg: "8:01", ga: "8:05", ctl: "8:08" },
+            { police: "08", agent: "21", tv: "44298395", vm: "7:38", chi: "7:38", al: "7:47", lm: "7:56", j18: "8:00", lux: "8:05", sg: "8:14", ga: "8:18", ctl: "8:21" },
+            { police: "09", agent: "3", tv: "44298378", vm: "7:58", chi: "7:58", al: "8:07", lm: "8:16", j18: "8:20", lux: "8:25", sg: "8:34", ga: "8:38", ctl: "8:41" },
+            { police: "10", agent: "5", tv: "44298704", vm: "8:09", chi: "8:09", al: "8:18", lm: "8:27", j18: "8:31", lux: "8:36", sg: "8:45", ga: "8:49", ctl: "8:52" },
+            { police: "11", agent: "61", tv: "44298506", vm: "8:19", chi: "8:19", al: "8:28", lm: "8:37", j18: "8:41", lux: "8:46", sg: "8:55", ga: "8:59", ctl: "9:02" },
+            { police: "12", agent: "60", tv: "44298522", vm: "8:29", chi: "8:29", al: "8:38", lm: "8:47", j18: "8:51", lux: "8:56", sg: "9:05", ga: "9:09", ctl: "9:12" },
+            { police: "13", agent: "20", tv: "44298458", vm: "8:39", chi: "8:39", al: "8:48", lm: "8:57", j18: "9:01", lux: "9:06", sg: "9:15", ga: "9:19", ctl: "9:22" }
+        ];
+        
+        let currentTM = TM_ALLER;
+        
+        // Tracés avec couleurs différentes
+        const gpsAller = [
+            [48.8584, 2.3476], [48.8575, 2.3518], [48.8550, 2.3605], [48.8530, 2.3690],
+            [48.8446, 2.3735], [48.8420, 2.3180], [48.8300, 2.3130], [48.8220, 2.3050], [48.8140, 2.2970]
+        ];
+        
+        const gpsRetour = [
+            [48.8140, 2.2970], [48.8220, 2.3050], [48.8300, 2.3130], [48.8420, 2.3180],
+            [48.8446, 2.3735], [48.8530, 2.3690], [48.8550, 2.3605], [48.8575, 2.3518], [48.8584, 2.3476]
+        ];
+        
+        let routeAller, routeRetour;
+        
+        const STOPS = {
+            "CTL": { nom: "CHÂTELET", lat: 48.8584, lng: 2.3476 },
+            "GA": { nom: "PONT NEUF", lat: 48.8570, lng: 2.3450 },
+            "LUX": { nom: "LUXEMBOURG", lat: 48.8490, lng: 2.3370 },
+            "18J": { nom: "MONTPARNASSE", lat: 48.8420, lng: 2.3180 },
+            "AL": { nom: "ALÉSIA", lat: 48.8280, lng: 2.3260 },
+            "CHN": { nom: "PORTE VANVES", lat: 48.8220, lng: 2.3050 },
+            "VM": { nom: "VANVES", lat: 48.8140, lng: 2.2970 }
+        };
+        
+        // ============================================================================
+        // FONCTIONS UTILES
+        // ============================================================================
+        function timeToMinutes(t) { if (!t) return 0; const p = t.split(':'); return parseInt(p[0])*60 + parseInt(p[1]); }
+        function getCurrentTimeMinutes() { const n = new Date(); return n.getHours()*60 + n.getMinutes(); }
+        
+        function getBusDelay(bus) {
+            const course = currentTM.find(c => c.tv === bus.currentTv);
+            if (!course) return 0;
+            const theoStr = currentDirection === 'aller' ? course.ctl : course.vm;
+            const realStr = realTimes.get(bus.currentTv) || theoStr;
+            return Math.max(0, timeToMinutes(realStr) - timeToMinutes(theoStr));
+        }
+        
+        function predictDelay(bus, minutesAhead = 30) {
+            const currentDelay = getBusDelay(bus);
+            const history = JSON.parse(localStorage.getItem(`history_${bus.id}`) || '[]');
+            let trend = 0;
+            if (history.length > 0) {
+                const recent = history.slice(-5);
+                trend = (currentDelay - recent[0]) / Math.min(5, recent.length);
+            }
+            let predicted = currentDelay + (trend * (minutesAhead / 15));
+            predicted = Math.max(0, Math.min(45, predicted));
+            const confidence = Math.min(95, Math.max(50, 80 - Math.abs(trend) * 5));
+            return { delay: Math.round(predicted), confidence: Math.round(confidence) };
+        }
+        
+        function updateHistory(bus) {
+            let history = JSON.parse(localStorage.getItem(`history_${bus.id}`) || '[]');
+            history.push(getBusDelay(bus));
+            if (history.length > 30) history.shift();
+            localStorage.setItem(`history_${bus.id}`, JSON.stringify(history));
+        }
+        
+        function getDelayClass(delay) {
+            if (delay >= 20) return { class: 'danger', text: `🔴 ${delay}min`, color: '#ef4444' };
+            if (delay >= 10) return { class: 'warning', text: `🟠 ${delay}min`, color: '#f97316' };
+            return { class: 'ok', text: `🟢 ${delay}min`, color: '#22c55e' };
+        }
+        
+        // ============================================================================
+        // INITIALISATION FLOTTE
+        // ============================================================================
+        function initFleet() {
+            const positions = [
+                { lat: 48.8584, lng: 2.3476 }, { lat: 48.8575, lng: 2.3518 }, { lat: 48.8550, lng: 2.3605 },
+                { lat: 48.8530, lng: 2.3690 }, { lat: 48.8446, lng: 2.3735 }, { lat: 48.8420, lng: 2.3180 },
+                { lat: 48.8300, lng: 2.3130 }, { lat: 48.8220, lng: 2.3050 }, { lat: 48.8140, lng: 2.2970 },
+                { lat: 48.8380, lng: 2.3250 }, { lat: 48.8450, lng: 2.3080 }, { lat: 48.8500, lng: 2.3360 }
+            ];
+            for (let i = 0; i < TM_ALLER.length; i++) {
+                const course = TM_ALLER[i];
+                fleetData.set(`POLICE ${course.police}`, {
+                    id: `POLICE ${course.police}`,
+                    police: course.police,
+                    currentAgent: course.agent,
+                    currentTv: course.tv,
+                    ctl: course.ctl,
+                    lat: positions[i % positions.length].lat + (Math.random() - 0.5) * 0.008,
+                    lng: positions[i % positions.length].lng + (Math.random() - 0.5) * 0.008,
+                    vitesse: 18 + Math.random() * 22
                 });
-
-                // Tri : Les bus couplés en premier pour la liste
-                enrichedBuses.sort((a, b) => b.isCoupled - a.isCoupled);
-
-                const list = document.getElementById('telemetry-list');
-                const targetSelect = document.getElementById('target-list');
-                
-                let listHtml = ""; 
-                let selectHtml = "";
-
-                enrichedBuses.forEach(bus => {
-                    const pol = bus.pol || "N/A";
-
-                    // 1. Update Map Markers
-                    if (!markers[pol]) {
-                        markers[pol] = L.marker([bus.lat, bus.lon], {
-                            icon: L.divIcon({
-                                className:'custom-icon', 
-                                html:`<div class="bus-marker" id="m-${pol}">${pol}</div>`,
-                                iconSize: [40, 20]
-                            })
-                        }).addTo(map);
-                    } else {
-                        markers[pol].setLatLng([bus.lat, bus.lon]);
-                    }
-
-                    // Toggle alerte visuelle sur la carte
-                    const markerDom = document.getElementById(`m-${pol}`);
-                    if(markerDom) {
-                        bus.isCoupled ? markerDom.classList.add('alert-active') : markerDom.classList.remove('alert-active');
-                    }
-
-                    // 2. Build Telemetry List
-                    listHtml += `
-                        <div class="p-4 rounded border transition-all ${bus.isCoupled ? 'bg-red-500/10 border-red-500/50' : 'bg-white/5 border-white/5'}">
-                            <div class="flex justify-between items-start">
-                                <div>
-                                    <p class="text-[10px] font-black ${bus.isCoupled ? 'text-red-500' : 'text-[#00f2ff]'}">UNITÉ_P${pol}</p>
-                                    <p class="text-[9px] font-bold text-white mt-1">${bus.speed || 0} KM/H</p>
-                                </div>
-                                <div class="text-right">
-                                    <p class="text-[7px] text-slate-500 uppercase tracking-tighter">${bus.status || 'EN LIGNE'}</p>
-                                    <span class="text-[8px] font-black ${bus.isCoupled ? 'text-red-500' : 'text-green-500'}">
-                                        ${bus.isCoupled ? '!! COUPLAGE !!' : 'STABLE'}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>`;
-                    
-                    selectHtml += `<option value="${pol}">UNITÉ P${pol}</option>`;
-                });
-
-                list.innerHTML = listHtml;
-                targetSelect.innerHTML = selectHtml;
-
-                // 3. Update KPIs
-                const prod = Math.min(100, (busArray.length / 8) * 100); // Seuil à 8 bus
-                document.getElementById('prod-text').innerText = Math.round(prod) + "%";
-                document.getElementById('prod-bar').style.width = prod + "%";
-
-                const ponct = Math.max(0, 100 - (alerts * 10));
-                document.getElementById('ponct-text').innerText = ponct + "%";
-                document.getElementById('ponct-bar').style.width = ponct + "%";
-
-            } catch (e) { 
-                console.error("Échec synchronisation flux");
             }
         }
-
-        // Fonctions de commande
-        function fastCmd(type) {
-            const target = document.getElementById('msg-target').value;
-            const msg = type === 'TR' ? "REGULATION : MARQUER L'ARRET (TR)" : "DEPART IMMEDIAT";
-            execute(target, msg);
-        }
-
-        function transmit() {
-            const target = document.getElementById('msg-target').value;
-            const msg = document.getElementById('msg-input').value;
-            if(msg) execute(target, msg.toUpperCase());
-        }
-
-        async function execute(target, msg) {
-            try {
-                const response = await fetch(`${SERVER_URL}/send_order`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ instruction: msg, pol: target })
-                });
-                if(response.ok) {
-                    // Feedback visuel au lieu d'une alert bloquante
-                    console.log(`ORDRE ENVOYÉ À ${target}`);
-                    document.getElementById('msg-input').value = "";
+        initFleet();
+        
+        // ============================================================================
+        // RENDU TABLEAU DE MARCHE (AMÉLIORÉ)
+        // ============================================================================
+        function renderTM() {
+            const container = document.getElementById('tm-container');
+            const currentTime = getCurrentTimeMinutes();
+            
+            let html = `<table class="tm-table">
+                <thead>
+                    <tr>
+                        <th>POLICE</th><th>AGENT</th><th>TV</th>`;
+            
+            if (currentDirection === 'aller') {
+                html += `<th>CTL</th><th>GA</th><th>LUX</th><th>18J</th><th>AL</th><th>CHN</th><th>VM</th>`;
+            } else {
+                html += `<th>VM</th><th>CHI</th><th>AL</th><th>LM</th><th>18J</th><th>LUX</th><th>SG</th><th>GA</th><th>CTL</th>`;
+            }
+            html += `</tr></thead><tbody>`;
+            
+            currentTM.forEach(course => {
+                const theoStr = currentDirection === 'aller' ? course.ctl : course.vm;
+                const theoTime = timeToMinutes(theoStr);
+                const isCurrent = Math.abs(currentTime - theoTime) <= 15;
+                const realStr = realTimes.get(course.tv);
+                const rowClass = isCurrent ? 'current' : (realStr ? 'delayed' : '');
+                
+                html += `<tr class="${rowClass}">
+                    <td class="police-cell">${course.police}</td>
+                    <td>${course.agent}</td>
+                    <td>${course.tv}</td>`;
+                
+                if (currentDirection === 'aller') {
+                    html += `<td>${course.ctl}</td><td>${course.ga}</td><td>${course.lux}</td>`;
+                    html += `<td>${course.j18}</td><td>${course.al}</td><td>${course.chn}</td><td>${course.vm}</td>`;
+                } else {
+                    html += `<td>${course.vm}</td><td>${course.chi}</td><td>${course.al}</td>`;
+                    html += `<td>${course.lm}</td><td>${course.j18}</td><td>${course.lux}</td>`;
+                    html += `<td>${course.sg}</td><td>${course.ga}</td><td>${course.ctl}</td>`;
                 }
-            } catch (e) { console.error("ERREUR TRANSMISSION"); }
+                html += `</tr>`;
+            });
+            
+            html += `</tbody></table>`;
+            container.innerHTML = html;
         }
-
-        setInterval(runJumoPerf, 3000);
-        runJumoPerf();
+        
+        function renderTimeline() {
+            const track = document.getElementById('timeline-track');
+            const hoursDiv = document.getElementById('timeline-hours');
+            const now = getCurrentTimeMinutes();
+            
+            let hoursHtml = '';
+            for (let h = 6; h <= 23; h++) hoursHtml += `<span>${h.toString().padStart(2,'0')}:00</span>`;
+            hoursDiv.innerHTML = hoursHtml;
+            
+            track.innerHTML = '';
+            const minTime = 360, maxTime = 1380, range = maxTime - minTime;
+            const nowPos = ((now - minTime) / range) * 100;
+            const nowLine = document.createElement('div');
+            nowLine.className = 'timeline-now';
+            nowLine.style.left = `${Math.max(0, Math.min(100, nowPos))}%`;
+            track.appendChild(nowLine);
+            
+            for (const bus of fleetData.values()) {
+                const course = currentTM.find(c => c.tv === bus.currentTv);
+                if (course) {
+                    const theoTime = timeToMinutes(currentDirection === 'aller' ? course.ctl : course.vm);
+                    const pos = ((theoTime - minTime) / range) * 100;
+                    if (pos >= 0 && pos <= 100) {
+                        const delay = getBusDelay(bus);
+                        const dc = getDelayClass(delay);
+                        const prediction = predictDelay(bus);
+                        
+                        const busDot = document.createElement('div');
+                        busDot.className = 'timeline-bus';
+                        busDot.style.backgroundColor = dc.color;
+                        busDot.style.left = `${pos}%`;
+                        busDot.title = `${bus.id} - Retard: ${delay}min | Prédiction 30min: +${prediction.delay}min`;
+                        busDot.onclick = () => focusOnBus(bus.lat, bus.lng, bus.id);
+                        track.appendChild(busDot);
+                        
+                        if (prediction.delay > delay) {
+                            const predPos = ((theoTime + prediction.delay - minTime) / range) * 100;
+                            if (predPos >= 0 && predPos <= 100) {
+                                const predLine = document.createElement('div');
+                                predLine.className = 'timeline-prediction';
+                                predLine.style.left = `${predPos}%`;
+                                predLine.title = `Prédiction: +${prediction.delay}min (confiance ${prediction.confidence}%)`;
+                                track.appendChild(predLine);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        function renderFleet() {
+            const container = document.getElementById('fleet-container');
+            let html = '';
+            let totalDelay = 0;
+            
+            for (const bus of fleetData.values()) {
+                const delay = getBusDelay(bus);
+                totalDelay += delay;
+                const dc = getDelayClass(delay);
+                const prediction = predictDelay(bus);
+                updateHistory(bus);
+                
+                html += `<div class="fleet-card ${dc.class}" onclick="focusOnBus(${bus.lat}, ${bus.lng}, '${bus.id}')">
+                            <div>
+                                <span style="color:var(--iris-cyan); font-weight:bold;">🚍 ${bus.id}</span>
+                                <div style="font-size:0.5rem; color:#888;">Agent ${bus.currentAgent} | TV:${bus.currentTv}</div>
+                            </div>
+                            <div style="text-align:right;">
+                                <div>${dc.text}</div>
+                                <div class="prediction-badge">🔮 +${prediction.delay}min (${prediction.confidence}%)</div>
+                            </div>
+                         </div>`;
+            }
+            container.innerHTML = html;
+            document.getElementById('bus-count').innerHTML = fleetData.size;
+            const avgDelay = totalDelay / fleetData.size;
+            document.getElementById('avg-delay').innerHTML = avgDelay.toFixed(1) + 'min';
+            const reg = Math.max(85, 100 - avgDelay);
+            document.getElementById('regularite-moy').innerHTML = reg.toFixed(1) + '%';
+            document.getElementById('kmc-realises').innerHTML = Math.floor(fleetData.size * 12 + Math.random() * 30);
+            
+            if (kpiChart) {
+                kpiChart.data.datasets[0].data = [reg, 100 - reg];
+                kpiChart.update();
+            }
+        }
+        
+        function renderAI() {
+            const container = document.getElementById('ai-container');
+            const delays = [];
+            for (const bus of fleetData.values()) delays.push(getBusDelay(bus));
+            const avgDelay = delays.reduce((a,b)=>a+b,0)/delays.length;
+            const maxDelay = Math.max(...delays);
+            const maxBus = Array.from(fleetData.values()).find(b => getBusDelay(b) === maxDelay);
+            
+            let predictions = [];
+            for (const bus of fleetData.values()) {
+                const pred = predictDelay(bus, 60);
+                predictions.push(pred.delay);
+            }
+            const avgPrediction = predictions.reduce((a,b)=>a+b,0)/predictions.length;
+            
+            container.innerHTML = `
+                <div class="prediction-card">
+                    <div><i class="fas fa-chart-line"></i> TENDANCE GLOBALE</div>
+                    <div>Retard moyen actuel: ${avgDelay.toFixed(1)}min</div>
+                    <div>Prédiction 1h: ${avgPrediction.toFixed(1)}min</div>
+                    <div class="confidence-bar"><div class="confidence-fill" style="width: ${Math.min(100, Math.max(0, 85 - avgDelay))}%"></div></div>
+                    <div>Confiance IA: ${Math.min(95, Math.max(50, 85 - avgDelay))}%</div>
+                </div>
+                ${maxDelay > 15 ? `<div class="prediction-card" style="border-left-color:var(--danger);">
+                    <i class="fas fa-exclamation-triangle"></i> ALERTE: ${maxBus?.id} retard critique (${maxDelay}min)
+                    <div>Prédiction propagation: +${Math.min(15, maxDelay/2)}min dans 30min</div>
+                    <button class="widget-btn" onclick="suggestAction('${maxBus?.id}')" style="margin-top:5px;">Proposer régulation</button>
+                </div>` : ''}
+                <div class="prediction-card">
+                    <i class="fas fa-lightbulb"></i> RECOMMANDATION IRIS
+                    <div>${avgDelay > 10 ? '⚡ Activer régulation préventive sur les prochaines courses' : '✅ Régulation nominale, surveillance active'}</div>
+                </div>
+            `;
+        }
+        
+        function suggestAction(busId) {
+            if (busId) {
+                showToast(`💡 Suggestion IRIS: Régulation sur ${busId}`, 'info');
+            }
+        }
+        
+        function renderChat() {
+            const container = document.getElementById('chat-container');
+            container.innerHTML = chatMessages.slice(-6).map(m => `
+                <div class="chat-message ${m.type}">
+                    <span style="color:var(--iris-cyan);">[${m.time}]</span> 
+                    <span style="color:var(--warning);">${m.to}:</span> ${m.message}
+                </div>
+            `).join('');
+        }
+        
+        // ============================================================================
+        // CARTE
+        // ============================================================================
+        function initMap() {
+            map = L.map('map').setView([48.842, 2.318], 13);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '© CartoDB | JUMBO PCC L58' }).addTo(map);
+            
+            routeAller = L.polyline(gpsAller, { color: 'var(--iris-cyan)', weight: 5, opacity: 0.8 }).addTo(map);
+            routeRetour = L.polyline(gpsRetour, { color: 'var(--iris-purple)', weight: 5, opacity: 0.8, dashArray: '5, 10' }).addTo(map);
+            if (currentDirection === 'aller') routeRetour.setStyle({ opacity: 0.3 });
+            else routeAller.setStyle({ opacity: 0.3 });
+            
+            for (const [k, s] of Object.entries(STOPS)) {
+                L.marker([s.lat, s.lng], {
+                    icon: L.divIcon({ html: `<div style="background:#1e293b; border:1px solid var(--iris-cyan); padding:2px 5px; border-radius:12px; font-size:7px; color:var(--iris-cyan);">${s.nom.substring(0,4)}</div>`, iconSize: [45, 16] })
+                }).addTo(map);
+            }
+            updateMapMarkers();
+        }
+        
+        function updateMapMarkers() {
+            const currentGps = currentDirection === 'aller' ? gpsAller : gpsRetour;
+            for (const bus of fleetData.values()) {
+                const delay = getBusDelay(bus);
+                const dc = getDelayClass(delay);
+                const course = currentTM.find(c => c.tv === bus.currentTv);
+                if (course) {
+                    const theoTime = timeToMinutes(currentDirection === 'aller' ? course.ctl : course.vm);
+                    const minTime = 360, maxTime = 1380;
+                    const progress = (theoTime - minTime) / (maxTime - minTime);
+                    const index = Math.floor(progress * (currentGps.length - 1));
+                    const pos = currentGps[Math.min(Math.max(0, index), currentGps.length - 1)];
+                    bus.lat = pos[0];
+                    bus.lng = pos[1];
+                }
+                
+                if (markers.has(bus.id)) markers.get(bus.id).setLatLng([bus.lat, bus.lng]);
+                else {
+                    const m = L.marker([bus.lat, bus.lng], {
+                        icon: L.divIcon({ html: `<div style="background:${dc.color}; width:8px; height:8px; border-radius:50%; border:2px solid white; box-shadow:0 0 8px ${dc.color};"></div>`, iconSize: [8, 8] })
+                    }).addTo(map);
+                    m.bindPopup(`<b>${bus.id}</b><br>Agent: ${bus.currentAgent}<br>TV:${bus.currentTv}<br>Retard:${delay}min`);
+                    markers.set(bus.id, m);
+                }
+            }
+        }
+        
+        function toggleDirection() {
+            currentDirection = currentDirection === 'aller' ? 'retour' : 'aller';
+            currentTM = currentDirection === 'aller' ? TM_ALLER : TM_RETOUR;
+            
+            if (currentDirection === 'aller') {
+                routeAller.setStyle({ opacity: 0.8 });
+                routeRetour.setStyle({ opacity: 0.3 });
+            } else {
+                routeAller.setStyle({ opacity: 0.3 });
+                routeRetour.setStyle({ opacity: 0.8 });
+            }
+            
+            renderTM();
+            renderTimeline();
+            renderFleet();
+            updateMapMarkers();
+            showToast(`Direction: ${currentDirection === 'aller' ? 'Châtelet → Vanves' : 'Vanves → Châtelet'}`, 'info');
+        }
+        
+        // ============================================================================
+        // COMMANDES VOCALES
+        // ============================================================================
+        function toggleVoiceRecognition() {
+            if (!('webkitSpeechRecognition' in window)) {
+                showToast("Reconnaissance vocale non supportée", 'error');
+                return;
+            }
+            const micBtn = document.getElementById('micBtn');
+            if (recognition && recognition.listening) {
+                recognition.stop();
+                micBtn.classList.remove('listening');
+                micBtn.innerHTML = '<i class="fas fa-microphone"></i> COMMANDE VOCALE';
+                recognition.listening = false;
+                return;
+            }
+            
+            recognition = new webkitSpeechRecognition();
+            recognition.lang = 'fr-FR';
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            
+            recognition.onstart = () => {
+                micBtn.classList.add('listening');
+                micBtn.innerHTML = '<i class="fas fa-microphone-slash"></i> ÉCOUTE...';
+                recognition.listening = true;
+            };
+            
+            recognition.onresult = (event) => {
+                const command = event.results[0][0].transcript.toLowerCase();
+                showToast(`🎤 Commande: "${command}"`, 'info');
+                
+                if (command.includes('bus') && command.match(/\d+/)) {
+                    const num = command.match(/\d+/)[0];
+                    const busId = `POLICE ${num.padStart(2,'0')}`;
+                    if (fleetData.has(busId)) {
+                        const bus = fleetData.get(busId);
+                        focusOnBus(bus.lat, bus.lng, busId);
+                        showToast(`📍 Focus sur ${busId}`, 'success');
+                    }
+                } else if (command.includes('aller')) {
+                    if (currentDirection !== 'aller') toggleDirection();
+                    showToast(`⬆️ Direction ALLER activée`, 'success');
+                } else if (command.includes('retour')) {
+                    if (currentDirection !== 'retour') toggleDirection();
+                    showToast(`⬇️ Direction RETOUR activée`, 'success');
+                } else if (command.includes('régulation')) {
+                    suggestAction(Array.from(fleetData.keys())[0]);
+                } else if (command.includes('retard')) {
+                    const delays = [];
+                    for (const bus of fleetData.values()) delays.push(getBusDelay(bus));
+                    const avg = delays.reduce((a,b)=>a+b,0)/delays.length;
+                    showToast(`📊 Retard moyen: ${avg.toFixed(1)} minutes`, 'info');
+                } else {
+                    showToast(`❓ Commande non reconnue. Essayez: "bus 5", "aller", "retour", "retard"`, 'warning');
+                }
+            };
+            
+            recognition.onerror = (event) => {
+                showToast(`Erreur reconnaissance: ${event.error}`, 'error');
+                micBtn.classList.remove('listening');
+                micBtn.innerHTML = '<i class="fas fa-microphone"></i> COMMANDE VOCALE';
+            };
+            
+            recognition.onend = () => {
+                micBtn.classList.remove('listening');
+                micBtn.innerHTML = '<i class="fas fa-microphone"></i> COMMANDE VOCALE';
+                recognition.listening = false;
+            };
+            
+            recognition.start();
+        }
+        
+        // ============================================================================
+        // DRAG & DROP PANELS
+        // ============================================================================
+        function startDrag(panel) {
+            dragTarget = panel;
+            const rect = panel.getBoundingClientRect();
+            dragOffsetX = event.clientX - rect.left;
+            dragOffsetY = event.clientY - rect.top;
+            document.addEventListener('mousemove', onDrag);
+            document.addEventListener('mouseup', stopDrag);
+        }
+        
+        function onDrag(e) {
+            if (!dragTarget) return;
+            let left = e.clientX - dragOffsetX;
+            let top = e.clientY - dragOffsetY;
+            left = Math.max(0, Math.min(window.innerWidth - dragTarget.offsetWidth, left));
+            top = Math.max(0, Math.min(window.innerHeight - dragTarget.offsetHeight, top));
+            dragTarget.style.left = left + 'px';
+            dragTarget.style.top = top + 'px';
+            dragTarget.style.position = 'fixed';
+            dragTarget.style.right = 'auto';
+        }
+        
+        function stopDrag() {
+            dragTarget = null;
+            document.removeEventListener('mousemove', onDrag);
+            document.removeEventListener('mouseup', stopDrag);
+        }
+        
+        function togglePanel(btn) {
+            const panel = btn.closest('.panel');
+            panel.classList.toggle('minimized');
+            btn.innerHTML = panel.classList.contains('minimized') ? '<i class="fas fa-plus"></i>' : '<i class="fas fa-minus"></i>';
+        }
+        
+        function resetLayout() {
+            const panels = document.querySelectorAll('.panel');
+            panels.forEach(p => {
+                p.style.position = '';
+                p.style.left = '';
+                p.style.top = '';
+                p.style.right = '';
+                p.style.bottom = '';
+                p.classList.remove('minimized');
+            });
+            location.reload();
+        }
+        
+        function exportData() {
+            let csv = "Police,Agent,TV,Théorique,Retard (min),Prédiction 30min\n";
+            for (const bus of fleetData.values()) {
+                const delay = getBusDelay(bus);
+                const pred = predictDelay(bus);
+                csv += `${bus.police},${bus.currentAgent},${bus.currentTv},${bus.ctl},${delay},${pred.delay}\n`;
+            }
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `TM_L58_${new Date().toISOString().slice(0,19)}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast("📁 Export CSV effectué", 'success');
+        }
+        
+        function testOfflineMode() {
+            offlineMode = !offlineMode;
+            if (offlineMode) document.body.classList.add('offline');
+            else document.body.classList.remove('offline');
+            showToast(offlineMode ? "🔌 MODE DÉGRADÉ ACTIVÉ (données locales)" : "🌐 MODE NORMAL", 'info');
+        }
+        
+        function sendMessage() {
+            const input = document.getElementById('chat-input');
+            const msg = input.value.trim();
+            if (!msg) return;
+            chatMessages.push({ from: "PCC", to: "TOUS", message: msg, time: new Date().toLocaleTimeString(), type: 'sent' });
+            input.value = '';
+            renderChat();
+            showToast(`📨 Message envoyé à tous les agents`, 'success');
+        }
+        
+        function focusOnBus(lat, lng, id) { map.setView([lat, lng], 15); showToast(`📍 ${id} centré`, 'info'); }
+        function showToast(msg, type) { const t = document.createElement('div'); t.className = 'toast'; t.innerHTML = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 3000); }
+        function updateClock() { document.getElementById('clock').innerHTML = new Date().toLocaleTimeString('fr-FR'); }
+        
+        // ============================================================================
+        // GRAPHIQUE KPI
+        // ============================================================================
+        function initChart() {
+            const ctx = document.getElementById('kpiChart').getContext('2d');
+            kpiChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Régularité', 'Écart'],
+                    datasets: [{ data: [98.5, 1.5], backgroundColor: ['var(--iris-cyan)', '#333'], borderWidth: 0 }]
+                },
+                options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'bottom', labels: { color: 'white', font: { size: 8 } } } } }
+            });
+        }
+        
+        // ============================================================================
+        // SIMULATION & RAFRAÎCHISSEMENT
+        // ============================================================================
+        function simulateMovement() {
+            setInterval(() => {
+                for (const bus of fleetData.values()) {
+                    const delay = getBusDelay(bus);
+                    if (delay > 0 && Math.random() < 0.3) {
+                        const newDelay = Math.max(0, delay + (Math.random() - 0.5) * 2);
+                        const course = currentTM.find(c => c.tv === bus.currentTv);
+                        if (course) {
+                            const theoStr = currentDirection === 'aller' ? course.ctl : course.vm;
+                            const newTime = timeToMinutes(theoStr) + newDelay;
+                            const newTimeStr = `${Math.floor(newTime/60).toString().padStart(2,'0')}:${(newTime%60).toString().padStart(2,'0')}`;
+                            realTimes.set(bus.currentTv, newTimeStr);
+                        }
+                    }
+                }
+                renderFleet();
+                renderTimeline();
+                renderAI();
+                updateMapMarkers();
+            }, 5000);
+        }
+        
+        // ============================================================================
+        // INIT
+        // ============================================================================
+        initMap();
+        initChart();
+        renderTM();
+        renderTimeline();
+        renderFleet();
+        renderAI();
+        setInterval(updateClock, 1000);
+        simulateMovement();
+        
+        window.toggleDirection = toggleDirection;
+        window.resetLayout = resetLayout;
+        window.exportData = exportData;
+        window.testOfflineMode = testOfflineMode;
+        window.sendMessage = sendMessage;
+        window.focusOnBus = focusOnBus;
+        window.toggleVoiceRecognition = toggleVoiceRecognition;
+        window.suggestAction = suggestAction;
+        
+        console.log(`✅ JUMBO PCC L58 - IRIS AI v4.0`);
+        console.log(`⬆️ ALLER: Châtelet → Vanves (cyan) | ⬇️ RETOUR: Vanves → Châtelet (violet)`);
+        console.log(`🎤 Commandes vocales: "bus 5", "aller", "retour", "retard"`);
     </script>
 </body>
 </html>
